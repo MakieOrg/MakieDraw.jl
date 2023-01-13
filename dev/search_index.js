@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"","page":"Home","title":"Home","text":"CurrentModule = MakieDraw","category":"page"},{"location":"#MakieDraw","page":"Home","title":"MakieDraw","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"Documentation for MakieDraw.","category":"page"},{"location":"","page":"Home","title":"Home","text":"","category":"page"},{"location":"","page":"Home","title":"Home","text":"Modules = [MakieDraw]","category":"page"},{"location":"#MakieDraw.Canvas","page":"Home","title":"MakieDraw.Canvas","text":"Canvas{T<:GeometryBasics.Geometry}\n\nA canvas for drawing GeometryBasics.jl geometries onto a Makie.jl Axis.\n\n\n\n\n\n","category":"type"}]
+}
