@@ -7,7 +7,7 @@ A canvas for drawing GeometryBasics.jl geometries onto a Makie.jl `Axis`.
 
 `T` must be `Point`, `LineString` or `Polygon`.
 """
-mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A} <: AbstractCanvas
+mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A,Co} <: AbstractCanvas
     geoms::G
     points::P
     dragging::Observable{Bool}
@@ -20,88 +20,117 @@ mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A} <: AbstractCanvas
     properties_textboxes::TB
     fig::F
     axis::A
+    color::Co
 end
-function GeometryCanvas(obj; properties=nothing, kw...)
+function GeometryCanvas(obj; propertynames=nothing, properties=nothing, kw...)
     if GI.isfeaturecollection(obj)
-        if properties isa NTuple{<:Any,Symbol}
-            properties = map(properties) do key
-                String[getproperty(GI.properties(f), key) for f in GI.getfeature(obj)]
-            end |> NamedTuple{properties}
+        if isnothing(properties)
+            properties = if propertynames isa NTuple{<:Any,Symbol}
+                map(propertynames) do name
+                    map(GI.getfeature(obj)) do f
+                        p = GI.properties(f)
+                        if !isnothing(p) && hasproperty(p, name)
+                            String(getproperty(p, name))
+                        else
+                            ""
+                        end
+                    end
+                end |> NamedTuple{propertynames}
+            else
+                nothing 
+            end
         end
-        geoms = filter(map(GI.geometry, GI.getfeature(obj))) do geom
-            !isnothing(geom)
-        end
+        geoms = map(GI.geometry, GI.getfeature(obj))
     else
-        geoms = obj
+        geoms = collect(obj)
+    end
+    geoms = filter(geoms) do geom
+        !isnothing(geom)
     end
     gb_geoms = GI.convert.(Ref(GeometryBasics), geoms)
-    trait = GI.geomtrait(first(gb_geoms))
-    T = GeometryBasics.geointerface_geomtype(trait)
-    GeometryCanvas{T}(gb_geoms; properties, kw...)
+    GeometryCanvas(Observable{Any}(gb_geoms); properties, kw...)
 end
-function GeometryCanvas{T}(geoms=T[];
+function GeometryCanvas(obs::Observable; kw...)
+    trait = GI.geomtrait(first(obs[]))
+    T = GeometryBasics.geointerface_geomtype(trait)
+    GeometryCanvas{T}(obs; kw...)
+end
+function GeometryCanvas{T}(geoms=Observable(T[]);
     dragging=Observable(false),
     active=Observable(true),
     accuracy_scale=1.0,
     name=nameof(T),
-    properties=(),
+    propertynames::Union{NTuple{<:Any,Symbol},Nothing}=nothing,
+    properties::Union{NamedTuple,Nothing}=nothing,
     fig=Figure(),
     axis=Axis(fig[1:10, 1:10]),
-) where T
+    section=nothing,
+    color=nothing,
+    scatter_kw=(;),
+    lines_kw=(;),
+    poly_kw=(;),
+) where T<:Union{Point,LineString,Polygon}
     axis.aspect = AxisAspect(1)
-    properties = if properties isa Tuple
+    properties = if propertynames isa Tuple
         map(properties) do p
             Observable(String[" " for _ in geoms])
         end |> NamedTuple{properties}
-    elseif properties isa NamedTuple
+    else
+        properties
+    end
+
+    properties = if properties isa NamedTuple
         map(properties) do p
             Observable(p)
         end
     else
-        throw(ArgumentError("Properties must be a Tuple of `Symbol` or a NamedTuple of `Vector{String}`"))
+        nothing
     end
-    # Convert geometries to nested points vectors so theyre easier to search and manipulate
+
     if T <: Point
-        points_obs = Observable([Point(0.0f0, 0.0f0)]) 
-    else
-        if length(geoms) > 0
-            points_obs = Observable(map(collect ∘ GI.getpoint, geoms))
-        else
-            points_obs = Observable([[Point(0.0f0, 0.0f0)]]) # _to_points(geoms)
-        end
-    end
-    # And convert back to the target geometry with `lift`
-    if T isa Point
+        # Convert geometries to nested points vectors so theyre easier to search and manipulate
+        points_obs = Observable(Point2{Float32}[Point(0.0f0, 0.0f0)]) 
         geoms_obs = points_obs
-        section = nothing
         current_point = Observable(1)
-    elseif T isa LineString
-        # ps will be a Vector of Vector of Point
-        section = nothing
-        geoms_obs = lift(points_obs) do ps
-            geoms = LineString.(ps)
-            geoms
-        end
-        current_point = Observable((1, 1))
     else
+        if length(geoms[]) > 0
+            points_obs = Observable(Vector{Point2{Float32}}[[Point2{Float32}(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms[]])
+        else
+            points_obs = Observable([Point2{Float32}[Point(0.0f0, 0.0f0)]]) # _to_points(geoms)
+        end
         # ps will be a Vector of Vector of Point
         # TODO support exteriors and holes with another layer of nesting?
         # Maybe Alt+click could mean "drawing a hole in this polygon now"
         # And section would be 1 here
-        section = nothing
-        geoms_obs = lift(points_obs) do ps
-            T.(ps)
+        on(points_obs) do ps
+            geoms[] = T.(ps)
         end
         current_point = Observable((1, 1))
     end
 
+    text_boxes = if isnothing(properties)
+        nothing
+    else
+        _make_property_text_inputs(fig, properties, current_point)
+    end
+
+    canvas = GeometryCanvas{T,typeof(geoms),typeof(points_obs),typeof(current_point),typeof(section),typeof(properties),typeof(text_boxes),typeof(fig),typeof(axis),typeof(color)}(
+        geoms, points_obs, dragging, active, accuracy_scale, current_point, section, name, properties, text_boxes, fig, axis, color
+    )
+
+    # Plot everying on `axis`
+    draw!(canvas, fig, axis; scatter_kw, lines_kw, poly_kw)
+    return canvas
+end
+
+function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable)
     i = 0
-    text_boxes = map(properties) do props
+    map(properties) do props
         i += 1
         tb = Textbox(fig[11, i]; stored_string=" ")
         on(tb.stored_string) do t
             propsvec = props[]
-            for i in 1:c.current_point[][1]-length(propsvec)
+            for i in 1:current_point[][1]-length(propsvec)
                 push!(propsvec, " ")
             end
             props[][current_point[][1]] = t
@@ -116,14 +145,6 @@ function GeometryCanvas{T}(geoms=T[];
             # notify(tb.displayed_string)
         end
     end
-
-    canvas = GeometryCanvas{T,typeof(geoms_obs),typeof(points_obs),typeof(current_point),typeof(section),typeof(properties),typeof(text_boxes),typeof(fig),typeof(axis)}(
-        geoms_obs, points_obs, dragging, active, accuracy_scale, current_point, section, name, properties, text_boxes, fig, axis
-    )
-
-    # Plot everying on `axis`
-    draw!(canvas, fig, axis)
-    return canvas
 end
 
 # Base methods
@@ -134,20 +155,32 @@ GI.isfeaturecollection(::Type{<:GeometryCanvas}) = true
 GI.trait(::GeometryCanvas) = GI.FeatureCollectionTrait()
 GI.nfeature(::GI.FeatureCollectionTrait, c::GeometryCanvas) = length(c.geoms[])
 function GI.getfeature(::GI.FeatureCollectionTrait, c::GeometryCanvas, i)
-    properties = map(p -> p[][i], c.properties)
-    GI.Feature(c.geoms[][i]; properties)
+    properties = if isnothing(c.properties)
+        nothing
+    else
+        map(p -> p[][i], c.properties)
+    end
+    return GI.Feature(c.geoms[][i]; properties)
 end
 
 # Tables.jl methods
 # TODO
 
 # Ploting 
-function draw!(c::GeometryCanvas{<:Point}, fig, ax::Axis)
-    _draw_points!(c, fig, ax)
+function draw!(c::GeometryCanvas{<:Point}, fig, ax::Axis;
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+)
+    _draw_points!(c, fig, ax; scatter_kw)
     addtoswitchers!(fig, ax, c)
 end
-function draw!(c::GeometryCanvas{<:LineString}, fig, ax::Axis)
-    l = lines!(ax, c.geoms)
+function draw!(c::GeometryCanvas{<:LineString}, fig, ax::Axis; 
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+)
+    l = if isnothing(c.color)
+        lines!(ax, c.geoms; lines_kw...)
+    else
+        lines!(ax, c.geoms; color=c.color, lines_kw...)
+    end
     translate!(l, 0, 0, 98)
     # End points 
     end_points = lift(c.points) do points
@@ -161,25 +194,37 @@ function draw!(c::GeometryCanvas{<:LineString}, fig, ax::Axis)
             end
         end |> Iterators.flatten |> collect
     end
-    e = scatter!(ax, end_points; color=:black)
+    e = scatter!(ax, end_points; color=:black, scatter_kw...)
     translate!(e, 0, 0, 99)
 
-    _draw_points!(c, fig, ax)
+    _draw_points!(c, fig, ax; scatter_kw)
     addtoswitchers!(fig, ax, c)
 end
-function draw!(c::GeometryCanvas{<:Polygon}, fig, ax::Axis)
+function draw!(c::GeometryCanvas{<:Polygon}, fig, ax::Axis;
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+)
     # TODO first plot as a line and switch to a polygon when you close it to the first point.
     # This will need all new polygons to be a line stored in a separate Observable
     # that we plot like LineString.
-    p = poly!(ax, c.geoms)
+    p = if isnothing(c.color)
+        poly!(ax, c.geoms)
+    else
+        poly!(ax, c.geoms; color=c.color, poly_kw...)
+    end
     translate!(p, 0, 0, 98)
-    _draw_points!(c, fig, ax)
+    _draw_points!(c, fig, ax; scatter_kw)
     addtoswitchers!(fig, ax, c)
 end
 
-function _draw_points!(c::GeometryCanvas, fig, ax::Axis)
+function _draw_points!(c::GeometryCanvas, fig, ax::Axis; 
+    scatter_kw=(;),
+)
     # All points
-    s = scatter!(ax, c.geoms)
+    s = if isnothing(c.color)
+        scatter!(ax, c.geoms; scatter_kw...)
+    else
+        scatter!(ax, c.geoms; color=c.color, scatter_kw...)
+    end
     translate!(s, 0, 0, 98)
 
     # Current point
@@ -191,7 +236,7 @@ function _draw_points!(c::GeometryCanvas, fig, ax::Axis)
             points[cp]
         end
     end
-    p = scatter!(ax, current_point_pos)
+    p = scatter!(ax, current_point_pos; scatter_kw...)
     translate!(p, 0, 0, 100)
 
     # Add mouse events
@@ -287,14 +332,20 @@ function mouse_drag!(c::GeometryCanvas{T}, fig, ax) where T <: Union{<:Polygon,<
                     if _is_shift_pressed(fig)
                         push!(points[], [pos])
                         idx[] = (lastindex(cur_geom), 1)
-                    end
-                    # See if the click is near a point
-                    found = _pointnear(points[], pos, accuracy[]) do I
-                        if isnothing(I)
-                            return nothing
-                        else
-                            idx[] = I
-                            return true
+                        found = true
+                    elseif _is_alt_pressed(fig)
+                        push!(points[], [pos])
+                        idx[] = (lastindex(cur_geom), 1)
+                        found = true
+                    else
+                        # See if the click is near a point
+                        found = _pointnear(points[], pos, accuracy[]) do I
+                            if isnothing(I)
+                                return nothing
+                            else
+                                idx[] = I
+                                return true
+                            end
                         end
                     end
 

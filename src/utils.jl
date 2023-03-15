@@ -32,6 +32,16 @@ function _is_shift_pressed(fig)
     Makie.Keyboard.left_shift in pressed || Makie.Keyboard.right_shift in pressed
 end
 
+function _is_control_pressed(fig)
+    pressed = events(fig).keyboardstate
+    Makie.Keyboard.left_control in pressed || Makie.Keyboard.right_control in pressed
+end
+
+function _is_alt_pressed(fig)
+    pressed = events(fig).keyboardstate
+    Makie.Keyboard.left_alt in pressed || Makie.Keyboard.right_alt in pressed
+end
+
 function _pointnear(f, positions::Vector{<:Point}, pos, accuracy)
     for i in eachindex(positions)[end:-1:1]
         p = positions[i]
