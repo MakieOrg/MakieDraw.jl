@@ -263,8 +263,10 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
 
     idx = c.current_point
     # Mouse down event
-    on(events(fig).mousebutton, priority = 100) do event
+    on(events(ax.scene).mousebutton, priority = 100) do event
+        @show event
         println("clicking...")
+        sleep(0.000001)
 
         # If this canvas is not active dont respond to mouse events
         active[] || return Consume(false)
@@ -316,11 +318,11 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
         end
         # notify(idx)
         println("click done")
-        return Consume(true)
+        return Consume(dragging[])
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority = 100) do mp
+    on(events(fig).mouseposition, priority = 100) do event
         active[] || return Consume(false)
         if dragging[]
             pos = Makie.mouseposition(ax.scene)
@@ -345,7 +347,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
     idx = c.current_point
 
     # Mouse down event
-    on(events(fig).mousebutton, priority = 100) do event
+    on(events(ax.scene).mousebutton, priority = 100) do event
         active[] || return Consume(false)
         pos = Makie.mouseposition(ax.scene)
         pos_px = Makie.mouseposition_px(fig.scene)
@@ -451,7 +453,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
             # notify(idx)
             notify(points)
         end
-        return Consume(true)
+        return Consume(dragging[])
     end
 
     # Mouse drag event
@@ -463,7 +465,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
             cur_polygon[idx[][1]][idx[][2]] = Point(pos)
             return Consume(true)
         end
-        return Consume(false)
+        Consume(false)
     end
 end
 
