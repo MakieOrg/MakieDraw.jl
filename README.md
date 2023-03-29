@@ -11,7 +11,7 @@ Plot an interactive canvas of GeometryBaseics `Point`, `LineString` or `Polygon`
 [makie_draw_life.webm](https://user-images.githubusercontent.com/2534009/228633357-52798d12-36dc-4bb7-a1d4-fdb620aa5ca6.webm)
 
 
-_Drawing into a DynamicGrids.jl simulation_
+_Drawing into a DynamicGrids.jl game of life simulation_
 
 # Example use cases
 - `GeometryCanvas` can be used to manually crreate GeoInterface.jl compatible FeatureCollections (and even add metadata columns for each geometry), which can be done over a heatmap or other spatial plot. A `GeometryCanvas` can be written directly to disk with GeoJSON.jl or Shapefile.jl.
