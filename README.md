@@ -8,6 +8,11 @@
 
 Plot an interactive canvas of GeometryBaseics `Point`, `LineString` or `Polygon`, or an ms-paint style canvas for any numerical or color `Array`. These can be overlayed and activated/deactivated to have multiple drawing task on the same `Axis`.
 
+
+# Example use cases
+- `GeometryCanvas` can be used to manually crreate GeoInterface.jl compatible FeatureCollections (and even add metadata columns for each geometry), which can be done over a heatmap or other spatial plot.
+- `PaintCanvas` can be used to manually edit matrices of any kind that Makie can plot. You could make `Bool` mask layers over maps or other images, edit categorical images, or just draw some retro images. 
+
 [makie_draws-2023-03-29_17.48.57.webm](https://user-images.githubusercontent.com/2534009/228595860-ae996719-c4a3-4479-b4da-f65183da867a.webm)
 
 
