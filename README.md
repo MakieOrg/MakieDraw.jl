@@ -15,6 +15,7 @@ using MakieDraw
 using Test
 using GLMakie
 using GeometryBasics
+using Colors
 
 fig = Figure()
 axis = Axis(fig[1, 1])
@@ -28,8 +29,9 @@ line_canvas = GeometryCanvas{LineString}(; axis, fig)
 line_canvas.active[] = false
 poly_canvas = GeometryCanvas{Polygon}(; axis, fig)
 
-data = rand(Bool, 100, 100)
+data = rand(RGB, 100, 100)
 paint_canvas = MakieDraw.PaintCanvas(data)
+paint_canvas.fill_left[] = RGB(1.0, 0.0, 0.0)
 
 
 MakieDraw.CanvasSelect(fig[1, 1], ax)
