@@ -9,34 +9,43 @@
 Plot an interactive canvas of points, lines or polygons. These can be overlayed
 and activated/deactivated to have multiple drawing task on the same `Axis`.
 
+[makie_draws-2023-03-29_17.48.57.webm](https://user-images.githubusercontent.com/2534009/228595860-ae996719-c4a3-4479-b4da-f65183da867a.webm)
+
 
 ```julia
 using MakieDraw
-using Test
 using GLMakie
 using GeometryBasics
-
-fig = Figure()
-axis = Axis(fig[1, 1])
-
-point_canvas = GeometryCanvas{Point2}(; fix, axis)
-point_canvas.geoms[]
-
-point_canvas.active[] = false
-line_canvas = GeometryCanvas{LineString}(; axis, fig)
-
-line_canvas.active[] = false
-poly_canvas = GeometryCanvas{Polygon}(; axis, fig)
-
-MakieDraw.CanvasSelect(fig[1, 1], ax)
-
-# Paint canvas
-
 using Colors
 
-data = rand(RGB, 1000, 1000)
-paint_canvas = MakieDraw.PaintCanvas(data)
+fig = Figure()
+axis = Axis(fig[1:10, 1])
+
+# Make a Point canvas
+point_canvas = GeometryCanvas{Point2}(; fig, axis)
+point_canvas.active[] = false
+
+# Make a LineString canvas
+line_canvas = GeometryCanvas{LineString}(; fig, axis)
+line_canvas.active[] = false
+
+# Make a Polygon canvas
+poly_canvas = GeometryCanvas{Polygon}(; fig, axis)
+poly_canvas.active[] = false
+
+# Make a heatmap paint canvas
+data = zeros(RGB, 150, 80)
+paint_canvas = MakieDraw.PaintCanvas(data; fill_right=RGB(1.0, 0.0, 0.0), fig, axis)
 
 # Use red on left click
-paint_canvas.fill_left[] = RGB(1.0, 0.0, 0.0)
+paint_canvas.fill_right[] = RGB(1.0, 0.0, 0.0)
+
+# Create a canvas select dropdown
+layers = Dict(
+  :point=>point_canvas.active, 
+  :line=>line_canvas.active, 
+  :poly=>poly_canvas.active, 
+  :paint=>paint_canvas.active,
+)
+MakieDraw.CanvasSelect(fig[11, 1], axis; layers)
 ```
