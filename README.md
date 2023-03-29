@@ -17,20 +17,20 @@ using GLMakie
 using GeometryBasics
 
 fig = Figure()
-ax = Axis(fig[1, 1])
+axis = Axis(fig[1, 1])
 
-point_canvas = Canvas{Point}()
-draw!(point_canvas, fig, ax)
-line_canvas.active[] = false
+point_canvas = GeometryCanvas{Point2}(; fix, axis)
 point_canvas.geoms[]
 
 point_canvas.active[] = false
-line_canvas = Canvas{LineString}()
-draw!(line_canvas, fig, ax)
+line_canvas = GeometryCanvas{LineString}(; axis, fig)
 
 line_canvas.active[] = false
-poly_canvas = Canvas{Polygon}()
-draw!(poly_canvas, fig, ax)
+poly_canvas = GeometryCanvas{Polygon}(; axis, fig)
+
+data = rand(Bool, 100, 100)
+paint_canvas = MakieDraw.PaintCanvas(data)
+
 
 MakieDraw.CanvasSelect(fig[1, 1], ax)
 ```

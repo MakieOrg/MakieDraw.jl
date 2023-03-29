@@ -256,12 +256,6 @@ end
 
 # Point selection and movement
 function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
-    (; geoms, points, dragging, active, section, accuracy_scale) = c
-
-    # Set how close to a point we have to be to select it
-    accuracy = _accuracy(ax, accuracy_scale)
-
-    idx = c.current_point
     # Mouse down event
     on(events(ax.scene).mousebutton, priority = 100) do event
         @show event
@@ -269,19 +263,26 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
         sleep(0.000001)
 
         # If this canvas is not active dont respond to mouse events
-        active[] || return Consume(false)
+        c.active[] || return Consume(false)
+
+        (; geoms, points, dragging, active, section, accuracy_scale) = c
+
+        # Set how close to a point we have to be to select it
+        accuracy = _accuracy(ax, accuracy_scale)
+
+        idx = c.current_point
 
         # Get mouse position in the axis and figure
-        pos = Makie.mouseposition(ax.scene)
-        pos_px = Makie.mouseposition_px(fig.scene)
+        axis_pos = Makie.mouseposition(ax.scene)
+        fig_pos = Makie.mouseposition_px(fig.scene)
 
         # Add points with left click
         if event.button == Mouse.left
             if event.action == Mouse.press
-                if pos_px in ax.scene.px_area[]
+                if fig_pos in ax.scene.px_area[]
                     section_points = _get(points, section)
                     insert = false
-                    found = _pointnear(section_points, pos, accuracy[]) do i
+                    found = _pointnear(section_points, axis_pos, accuracy[]) do i
                         if isnothing(i)
                             nothing
                         else
@@ -291,7 +292,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
                     end
                     if isnothing(found)
                         if !insert
-                            push!(section_points, pos)
+                            push!(section_points, axis_pos)
                             idx[] = lastindex(section_points)
                         end
                         notify(points)
@@ -304,11 +305,11 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
         # Delete points with right click
         elseif event.button == Mouse.right && 
             event.action == Mouse.press && 
-            pos_px in ax.scene.px_area[]
+            fig_pos in ax.scene.px_area[]
             section_points = _get(points, section)
             # Cant delete the last point currently...
             if length(section_points) > 1
-                _pointnear(section_points, pos, accuracy[]) do i
+                _pointnear(section_points, axis_pos, accuracy[]) do i
                     isnothing(i) || deleteat!(section_points, i)
                     # Set the current point to the previous one, or 1
                     idx[] =  max(1, i-1)
@@ -323,12 +324,12 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
 
     # Mouse drag event
     on(events(fig).mouseposition, priority = 100) do event
-        active[] || return Consume(false)
-        if dragging[]
-            pos = Makie.mouseposition(ax.scene)
-            _get(points, section)[idx[]] = pos
+        c.active[] || return Consume(false)
+        if c.dragging[]
+            axis_pos = Makie.mouseposition(ax.scene)
+            _get(c.points, c.section)[c.current_point[]] = axis_pos
             # notify(idx)
-            notify(points)
+            notify(c.points)
             return Consume(true)
         end
         return Consume(false)
@@ -339,23 +340,26 @@ end
 # end
 
 function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Polygon,<:LineString}
-    (; geoms, points, dragging, active, section, accuracy_scale) = c
 
     # Set how close to a point we have to be to select it
     accuracy = _accuracy(ax, accuracy_scale)
 
-    idx = c.current_point
-
     # Mouse down event
     on(events(ax.scene).mousebutton, priority = 100) do event
-        active[] || return Consume(false)
+
+        (; geoms, points, dragging, active, section, accuracy_scale) = c
+
+        c.active[] || return Consume(false)
+
+        idx = c.current_point
+
         pos = Makie.mouseposition(ax.scene)
-        pos_px = Makie.mouseposition_px(fig.scene)
+        fig_pos = Makie.mouseposition_px(fig.scene)
         # Add points with left click
         if event.button == Mouse.left
             cur_geom = _get(points, section)
             if event.action == Mouse.press
-                if pos_px in ax.scene.px_area[]
+                if fig_pos in ax.scene.px_area[]
                     insert = false
                     if _is_shift_pressed(fig)
                         push!(points[], [pos])
@@ -433,7 +437,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
                         break
                     end
                 end
-            elseif pos_px in ax.scene.px_area[]
+            elseif fig_pos in ax.scene.px_area[]
                 _pointnear(cur_geom, pos, accuracy[]) do I
                     if !isnothing(I)
                         deleteat!(cur_geom[I[1]], I[2])
@@ -458,10 +462,11 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
 
     # Mouse drag event
     on(events(fig).mouseposition, priority = 100) do mp
-        active[] || return Consume(false)
-        if dragging[]
+        c.active[] || return Consume(false)
+        idx = c.current_point
+        if c.dragging[]
             pos = Makie.mouseposition(ax.scene)
-            cur_polygon = _get(points, section)
+            cur_polygon = _get(c.points, csection)
             cur_polygon[idx[][1]][idx[][2]] = Point(pos)
             return Consume(true)
         end
