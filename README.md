@@ -8,6 +8,8 @@
 
 Plot an interactive canvas of GeometryBaseics `Point`, `LineString` or `Polygon`, or an ms-paint style canvas for any numerical or color `Array`. These can be overlayed and activated/deactivated to have multiple drawing task on the same `Axis`.
 
+[makiedraw_life-2023-03-29_20.10.01.webm](https://user-images.githubusercontent.com/2534009/228630071-96252071-16b2-4de1-a601-1cbd3d3ec81b.webm)
+
 
 # Example use cases
 - `GeometryCanvas` can be used to manually crreate GeoInterface.jl compatible FeatureCollections (and even add metadata columns for each geometry), which can be done over a heatmap or other spatial plot. A `GeometryCanvas` can be written directly to disk with GeoJSON.jl or Shapefile.jl.
