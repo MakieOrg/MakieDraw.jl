@@ -36,7 +36,7 @@ poly_canvas.active[] = false
 data = zeros(RGB, 150, 80)
 paint_canvas = MakieDraw.PaintCanvas(data; fill_right=RGB(1.0, 0.0, 0.0), fig, axis)
 
-# Use red on left click
+# Use red on right click
 paint_canvas.fill_right[] = RGB(1.0, 0.0, 0.0)
 
 # Create a canvas select dropdown
