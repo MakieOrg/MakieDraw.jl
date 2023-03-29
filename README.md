@@ -8,7 +8,8 @@
 
 Plot an interactive canvas of GeometryBaseics `Point`, `LineString` or `Polygon`, or an ms-paint style canvas for any numerical or color `Array`. These can be overlayed and activated/deactivated to have multiple drawing task on the same `Axis`.
 
-[makiedraw_life-2023-03-29_20.10.01.webm](https://user-images.githubusercontent.com/2534009/228630071-96252071-16b2-4de1-a601-1cbd3d3ec81b.webm)
+[makie_draw_life.webm](https://user-images.githubusercontent.com/2534009/228633357-52798d12-36dc-4bb7-a1d4-fdb620aa5ca6.webm)
+
 
 _Drawing into a DynamicGrids.jl simulation_
 
