@@ -15,6 +15,7 @@ _Drawing into a DynamicGrids.jl game of life simulation_
 
 # Example use cases
 - `GeometryCanvas` can be used to manually crreate GeoInterface.jl compatible FeatureCollections (and even add metadata columns for each geometry), which can be done over a heatmap or other spatial plot. A `GeometryCanvas` can be written directly to disk with GeoJSON.jl or Shapefile.jl.
+- `GeometryCanvas` can also be used to edit any GeoInterface.jl compatible geometries and feature collections.
 - `PaintCanvas` can be used to manually edit matrices of any kind that Makie can plot. You could make `Bool` mask layers over maps or other images, edit categorical images, or just draw some retro pictures on a `Matrix{RGB}`. 
 - MakieDraw could also be used for live interaction, such as using `PaintCanvas` as a mask or aux layer in DynamicGrids.jl simulations.
 
