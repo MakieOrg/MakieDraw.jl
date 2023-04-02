@@ -60,3 +60,13 @@ layers = Dict(
 )
 MakieDraw.CanvasSelect(fig[11, 1], axis; layers)
 ```
+
+`GeometryCanvas` keys:
+
+Left click to add, grab or drag points, right click to remove them.
+
+Shift + left click starts new lines and polygons.
+
+`PaintCanvas` keys:
+
+Left click draws with `fill_left`, right click draws with `fill_right`.
