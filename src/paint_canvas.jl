@@ -3,9 +3,7 @@
 
     PaintCanvas{T}(geoms=T[]; kw...)
 
-A canvas for drawing GeometryBasics.jl geometries onto a Makie.jl `Axis`.
-
-`T` must be `Point`, `LineString` or `Polygon`.
+A canvas for painting into a Matrix Real numbers or colors.
 """
 mutable struct PaintCanvas{T,Fu,D,M<:AbstractMatrix{T},Fi,A} <: AbstractCanvas
     f::Fu
