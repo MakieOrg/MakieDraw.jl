@@ -55,7 +55,7 @@ function GeometryCanvas(obs::Observable; kw...)
     T = GeometryBasics.geointerface_geomtype(trait)
     GeometryCanvas{T}(obs; kw...)
 end
-function GeometryCanvas{T}(geoms::Observable=Observable(T[]);
+function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     dragging=Observable{Bool}(false),
     active=Observable{Bool}(true),
     accuracy_scale=1.0,
@@ -71,6 +71,37 @@ function GeometryCanvas{T}(geoms::Observable=Observable(T[]);
     poly_kw=(;),
 ) where T<:Union{Point,LineString,Polygon}
     axis.aspect = AxisAspect(1)
+
+    if T <: Point
+        # Convert geometries to nested points vectors so theyre easier to search and manipulate
+        points_obs = if length(geoms[]) > 0
+            Observable([Point2(GI.x(p), GI.y(p)) for p in geoms[]])
+        else
+            Observable(Point2{Float64}[])
+        end
+        geoms_obs = points_obs
+        current_point = Observable(1)
+        on(points_obs) do ps
+            geoms[] = ps
+        end
+    else
+        points_obs = if length(geoms[]) > 0
+            Observable([[Point2(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms[]])
+        else
+            ps = [[Point(1.0, 1.0)]]
+            geoms[] = T.(ps)
+            Observable(ps)
+        end
+        # ps will be a Vector of Vector of Point
+        # TODO support exteriors and holes with another layer of nesting?
+        # Maybe Alt+click could mean "drawing a hole in this polygon now"
+        # And section would be 1 here
+        on(points_obs) do ps
+            geoms[] = T.(ps)
+        end
+        current_point = Observable((1, 1))
+    end
+
     properties = if propertynames isa Tuple
         map(properties) do p
             Observable{Vector{String}}(String[" " for _ in geoms])
@@ -87,42 +118,13 @@ function GeometryCanvas{T}(geoms::Observable=Observable(T[]);
         nothing
     end
 
-    if T <: Point
-        # Convert geometries to nested points vectors so theyre easier to search and manipulate
-        points_obs = if length(geoms[]) > 0
-            Observable(Point2{Float32}[Point2{Float32}(GI.x(p), GI.y(p)) for p in geoms[]])
-        else
-            Observable(Point2{Float32}[])
-        end
-        geoms_obs = points_obs
-        current_point = Observable(1)
-        on(points_obs) do ps
-            geoms[] = ps
-        end
-    else
-        points_obs = if length(geoms[]) > 0
-            Observable(Vector{Point2{Float32}}[[Point2{Float32}(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms[]])
-        else
-            Observable([Point2{Float32}[Point(1.0f0, 1.0f0)]]) # _to_points(geoms)
-        end
-        # ps will be a Vector of Vector of Point
-        # TODO support exteriors and holes with another layer of nesting?
-        # Maybe Alt+click could mean "drawing a hole in this polygon now"
-        # And section would be 1 here
-        on(points_obs) do ps
-            geoms[] = T.(ps)
-        end
-        current_point = Observable((1, 1))
-    end
-
     text_boxes = if isnothing(properties)
         nothing
     else
         _make_property_text_inputs(fig, properties, current_point)
     end
 
-    canvas = GeometryCanvas{T,map(typeof,
-        (geoms,points_obs,current_point,section,properties,text_boxes,fig,axis,color))...}(
+    canvas = GeometryCanvas{T,map(typeof,(geoms,points_obs,current_point,section,properties,text_boxes,fig,axis,color))...}(
         geoms, points_obs, dragging, active, accuracy_scale, current_point, 
         section, name, properties, text_boxes, fig, axis, color
     )
@@ -133,6 +135,9 @@ function GeometryCanvas{T}(geoms::Observable=Observable(T[]);
     add_mouse_events!(fig, axis, canvas)
     return canvas
 end
+
+_geomtype(T) = T
+_geomtype(::Type{<:Point}) = Point2
 
 function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable)
     i = 0
@@ -182,7 +187,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;),
 )
     draw_points!(fig, ax, c; scatter_kw)
-    # draw_current_point!(fig, ax, c; scatter_kw) 
+    draw_current_point!(fig, ax, c; scatter_kw) 
 end
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString}; 
     scatter_kw=(;), lines_kw=(;), poly_kw=(;),
@@ -223,6 +228,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     end
     translate!(p, 0, 0, 98)
     draw_points!(fig, ax, c; scatter_kw)
+    draw_current_point!(fig, ax, c; scatter_kw) 
 end
 
 function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
@@ -258,9 +264,6 @@ end
 function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
     # Mouse down event
     on(events(ax.scene).mousebutton, priority = 100) do event
-        @show event
-        println("clicking...")
-        sleep(0.000001)
 
         # If this canvas is not active dont respond to mouse events
         c.active[] || return Consume(false)
@@ -317,8 +320,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
                 notify(points)
             end
         end
-        # notify(idx)
-        println("click done")
+        notify(idx)
         return Consume(dragging[])
     end
 
@@ -341,13 +343,14 @@ end
 
 function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Polygon,<:LineString}
 
-    # Set how close to a point we have to be to select it
-    accuracy = _accuracy(ax, accuracy_scale)
 
     # Mouse down event
     on(events(ax.scene).mousebutton, priority = 100) do event
 
         (; geoms, points, dragging, active, section, accuracy_scale) = c
+
+        # Set how close to a point we have to be to select it
+        accuracy = _accuracy(ax, accuracy_scale)
 
         c.active[] || return Consume(false)
 
@@ -425,7 +428,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
                 dragging[] = false
             end
             notify(points)
-            # notify(idx)
+            notify(idx)
         # Delete points with right click
         elseif event.button == Mouse.right
             cur_geom = _get(points, section)
@@ -454,7 +457,7 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
                     end
                 end
             end
-            # notify(idx)
+            notify(idx)
             notify(points)
         end
         return Consume(dragging[])
@@ -466,8 +469,10 @@ function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Pol
         idx = c.current_point
         if c.dragging[]
             pos = Makie.mouseposition(ax.scene)
-            cur_polygon = _get(c.points, csection)
+            cur_polygon = _get(c.points, c.section)
             cur_polygon[idx[][1]][idx[][2]] = Point(pos)
+            notify(c.points)
+            notify(idx)
             return Consume(true)
         end
         Consume(false)

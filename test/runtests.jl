@@ -1,31 +1,24 @@
 using MakieDraw
 using Test
-using Makie
 using GLMakie
-# using WGLMakie
 using GeometryBasics
-using MapTiles
-
+using GeoJSON
+using GeoInterface
+using TileProviders
 using Tyler
-using GLMakie
-provider = Providers.Google(:satelite)
-tyler = Tyler.Map(Rect2f(-27.0, 38.0, 0.04, 0.025); provider)
-fig = tyler.figure
-ax = tyler.axis
+using Extents
+provider = Google(:satelite)
+tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
+fig = tyler.figure;
+axis = tyler.axis;
 
-fig = Figure()
-ax = Axis(fig[2:10, 1])
+line_canvas = GeometryCanvas{LineString}(; fig, axis)
 
-line_canvas = Canvas{LineString}()
-draw!(line_canvas, fig, ax)
-line_canvas.active[] = false
+line_canvas.active[] = true
+point_canvas = GeometryCanvas{Point}(; fig, axis)
 
-point_canvas = Canvas{Point}()
-draw!(point_canvas, fig, ax)
 point_canvas.active[] = false
-
-poly_canvas = Canvas{Polygon}()
-draw!(poly_canvas, fig, ax)
+poly_canvas = GeometryCanvas{Polygon}(; fig, axis)
 
 layers = Dict(
     :point=>point_canvas.active, 
@@ -33,13 +26,17 @@ layers = Dict(
     :poly=>poly_canvas.active,
 )
 
-MakieDraw.CanvasSelect(fig[1, 1], ax; layers)
+MakieDraw.CanvasSelect(fig[2, 1], axis; layers)
 
-# point_canvas.active[] = false
+# Write the polygons to JSON
+# Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193
+polygons = GeoInterface.convert.(Ref(GeoInterface), poly_canvas.geoms[])
+mp = GeoInterface.MultiPolygon(polygons)
+GeoJSON.write("multipolygon.json", mp)
 
-@testset "MakieDraw.jl" begin
-end
-
-using GeoInterface
-GeoJSON.GeometryCollection(poly_canvas.geoms[])
-GeoJSON.write("azores.json", GeoInterface.convert.(GeoJSON.Polygon, poly_canvas.geoms[]))
+# Reload and edit again
+polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json"))))
+tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
+fig = tyler.figure;
+axis = tyler.axis;
+poly_canvas = GeometryCanvas(polygons; fig, axis)
