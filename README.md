@@ -21,44 +21,50 @@ _Drawing into a DynamicGrids.jl game of life simulation_
 
 [makie_draws-2023-03-29_17.48.57.webm](https://user-images.githubusercontent.com/2534009/228595860-ae996719-c4a3-4479-b4da-f65183da867a.webm)
 
-_Drawing with the example below_
+Or try this example over Tyler.jl tiles:
 
 ```julia
 using MakieDraw
 using GLMakie
+using GeoJSON
 using GeometryBasics
-using Colors
+using GeoInterface
+using TileProviders
+using Tyler
+using Extents
+provider = Google(:satelite)
+tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
+fig = tyler.figure;
+axis = tyler.axis;
 
-fig = Figure()
-axis = Axis(fig[1:10, 1])
-
-# Make a Point canvas
-point_canvas = GeometryCanvas{Point2}(; fig, axis)
-point_canvas.active[] = false
-
-# Make a LineString canvas
 line_canvas = GeometryCanvas{LineString}(; fig, axis)
-line_canvas.active[] = false
 
-# Make a Polygon canvas
+line_canvas.active[] = true
+point_canvas = GeometryCanvas{Point}(; fig, axis)
+
+point_canvas.active[] = false
 poly_canvas = GeometryCanvas{Polygon}(; fig, axis)
-poly_canvas.active[] = false
 
-# Make a heatmap paint canvas
-data = zeros(RGB, 150, 80)
-paint_canvas = MakieDraw.PaintCanvas(data; fill_right=RGB(1.0, 0.0, 0.0), fig, axis)
-
-# Use red on right click
-paint_canvas.fill_right[] = RGB(1.0, 0.0, 0.0)
-
-# Create a canvas select dropdown
 layers = Dict(
-  :point=>point_canvas.active, 
-  :line=>line_canvas.active, 
-  :poly=>poly_canvas.active, 
-  :paint=>paint_canvas.active,
+    :point=>point_canvas.active, 
+    :line=>line_canvas.active,
+    :poly=>poly_canvas.active,
 )
-MakieDraw.CanvasSelect(fig[11, 1], axis; layers)
+
+MakieDraw.CanvasSelect(fig[2, 1], axis; layers)
+
+# Write the polygons to JSON
+# Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193
+polygons = GeoInterface.convert.(Ref(GeoInterface), poly_canvas.geoms[])
+mp = GeoInterface.MultiPolygon(polygons)
+GeoJSON.write("multipolygon.json", mp)
+
+# Reload and edit again
+polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json"))))
+tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
+fig = tyler.figure;
+axis = tyler.axis;
+poly_canvas = GeometryCanvas(polygons; fig, axis)
 ```
 
 `GeometryCanvas` keys:
