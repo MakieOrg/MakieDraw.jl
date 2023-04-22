@@ -69,6 +69,8 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     scatter_kw=(;),
     lines_kw=(;),
     poly_kw=(;),
+    current_point_kw=(;),
+    show_current_point=false,
 ) where T<:Union{Point,LineString,Polygon}
     axis.aspect = AxisAspect(1)
 
@@ -130,7 +132,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     )
 
     # Plot everying on `axis`
-    draw!(fig, axis, canvas; scatter_kw, lines_kw, poly_kw)
+    draw!(fig, axis, canvas; scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point)
     addtoswitchers!(fig, axis, canvas)
     add_mouse_events!(fig, axis, canvas)
     return canvas
@@ -184,13 +186,17 @@ end
 
 # Ploting 
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
-    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
+    show_current_point=false,
 )
     draw_points!(fig, ax, c; scatter_kw)
-    draw_current_point!(fig, ax, c; scatter_kw) 
+    if show_current_point
+        draw_current_point!(fig, ax, c; current_point_kw) 
+    end
 end
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString}; 
-    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
+    show_current_point=false,
 )
     l = if isnothing(c.color)
         lines!(ax, c.geoms; lines_kw...)
@@ -213,10 +219,13 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
     e = scatter!(ax, end_points; color=:black, scatter_kw...)
     translate!(e, 0, 0, 99)
     draw_points!(fig, ax, c; scatter_kw)
-    draw_current_point!(fig, ax, c; scatter_kw) 
+    if show_current_point
+        draw_current_point!(fig, ax, c; current_point_kw) 
+    end
 end
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
-    scatter_kw=(;), lines_kw=(;), poly_kw=(;),
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
+    show_current_point=false,
 )
     # TODO first plot as a line and switch to a polygon when you close it to the first point.
     # This will need all new polygons to be a line stored in a separate Observable
@@ -228,7 +237,9 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     end
     translate!(p, 0, 0, 98)
     draw_points!(fig, ax, c; scatter_kw)
-    draw_current_point!(fig, ax, c; scatter_kw) 
+    if show_current_point
+        draw_current_point!(fig, ax, c; scatter_kw) 
+    end
 end
 
 function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
