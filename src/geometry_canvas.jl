@@ -18,34 +18,42 @@ mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A,Co} <: AbstractCanvas
     name::Symbol
     properties::Pr
     properties_textboxes::TB
-    fig::F
+    figure::F
     axis::A
     color::Co
 end
 function GeometryCanvas(obj; propertynames=nothing, properties=nothing, kw...)
-    if GI.isfeaturecollection(obj)
-        if isnothing(properties)
-            properties = if propertynames isa NTuple{<:Any,Symbol}
-                map(propertynames) do name
-                    map(GI.getfeature(obj)) do f
-                        p = GI.properties(f)
-                        if !isnothing(p) && hasproperty(p, name)
-                            String(getproperty(p, name))
-                        else
-                            ""
-                        end
+    if Tables.istable(typeof(obj))
+        properties = if isnothing(properties) && !isnothing(propertynames)
+            map(propertynames) do name
+                collect(Tables.getcolumn(obj, name))
+            end |> NamedTuple{propertynames}
+        else
+            NamedTuple()
+        end
+        geoms = Tables.getcolumn(obj, first(GI.geometrycolumns(obj)))
+    elseif GI.isfeaturecollection(obj)
+        properties = if isnothing(properties) && !isnothing(propertynames)
+            map(propertynames) do name
+                map(GI.getfeature(obj)) do f
+                    p = GI.properties(f)
+                    if !isnothing(p) && hasproperty(p, name)
+                        String(getproperty(p, name))
+                    else
+                        ""
                     end
-                end |> NamedTuple{propertynames}
-            else
-                nothing 
-            end
+                end
+            end |> NamedTuple{propertynames}
+        else
+            NamedTuple()
         end
         geoms = map(GI.geometry, GI.getfeature(obj))
     else
         geoms = collect(obj)
-    end
-    geoms = filter(geoms) do geom
-        !isnothing(geom)
+        properties = isnothing(properties) ? NamedTuple() : properties
+        # geoms = filter(geoms) do geom
+        #     !isnothing(geom)
+        # end
     end
     gb_geoms = GI.convert.(Ref(GeometryBasics), geoms)
     GeometryCanvas(Observable(gb_geoms); properties, kw...)
@@ -62,8 +70,8 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     name=nameof(T),
     propertynames::Union{NTuple{<:Any,Symbol},Nothing}=nothing,
     properties::Union{NamedTuple,Nothing}=nothing,
-    fig=Figure(),
-    axis=Axis(fig[1:10, 1:10]),
+    figure=Figure(),
+    axis=Axis(figure[1:10, 1:10]),
     section=nothing,
     color=nothing,
     scatter_kw=(;),
@@ -73,6 +81,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     show_current_point=false,
 ) where T<:Union{Point,LineString,Polygon}
     axis.aspect = AxisAspect(1)
+    geoms = geoms isa Observable ? geoms : Observable(geoms)
 
     if T <: Point
         # Convert geometries to nested points vectors so theyre easier to search and manipulate
@@ -123,18 +132,18 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     text_boxes = if isnothing(properties)
         nothing
     else
-        _make_property_text_inputs(fig, properties, current_point)
+        _make_property_text_inputs(figure, properties, current_point)
     end
 
-    canvas = GeometryCanvas{T,map(typeof,(geoms,points_obs,current_point,section,properties,text_boxes,fig,axis,color))...}(
+    canvas = GeometryCanvas{T,map(typeof,(geoms,points_obs,current_point,section,properties,text_boxes,figure,axis,color))...}(
         geoms, points_obs, dragging, active, accuracy_scale, current_point, 
-        section, name, properties, text_boxes, fig, axis, color
+        section, name, properties, text_boxes, figure, axis, color
     )
 
     # Plot everying on `axis`
-    draw!(fig, axis, canvas; scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point)
-    addtoswitchers!(fig, axis, canvas)
-    add_mouse_events!(fig, axis, canvas)
+    draw!(figure, axis, canvas; scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point)
+    addtoswitchers!(figure, axis, canvas)
+    add_mouse_events!(figure, axis, canvas)
     return canvas
 end
 
@@ -146,27 +155,36 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
     map(properties) do props
         i += 1
         tb = Textbox(fig[11, i]; stored_string=" ")
+        T = eltype(props[])
         on(tb.stored_string) do t
             propsvec = props[]
             for i in 1:current_point[][1]-length(propsvec)
-                push!(propsvec, " ")
+                if T isa AbstractString
+                    push!(propsvec, " ")
+                elseif T isa Real
+                    push!(propsvec, zero(T))
+                end
             end
-            props[][current_point[][1]] = t
+            propsvec[current_point[][1]] = t
             notify(props)
         end
         on(current_point) do cp
             propsvec = props[]
             for i in 1:cp[1]-length(propsvec)
-                push!(propsvec, " ")
+                if T isa AbstractString
+                    push!(propsvec, " ")
+                elseif T isa Real
+                    push!(propsvec, zero(T))
+                end
             end
-            tb.displayed_string[] = lpad(props[][cp[1]], 1)
+            tb.displayed_string[] = lpad(propsvec[cp[1]], 1)
             notify(tb.displayed_string)
         end
     end
 end
 
 # Base methods
-Base.display(c::GeometryCanvas) = display(c.fig)
+Base.display(c::GeometryCanvas) = display(c.figure)
 
 # GeoInterface.jl methods
 GI.isfeaturecollection(::Type{<:GeometryCanvas}) = true
@@ -182,7 +200,40 @@ function GI.getfeature(::GI.FeatureCollectionTrait, c::GeometryCanvas, i)
 end
 
 # Tables.jl methods
-# TODO
+Tables.istable(::Type{<:GeometryCanvas}) = true
+Tables.columnaccess(::Type{<:GeometryCanvas}) = true
+Tables.columns(x::GeometryCanvas) = x
+
+Tables.columnnames(gc::GeometryCanvas) = (:geometry, Tables.columnnames(gc.properties)...)
+
+function Tables.schema(gc::GeometryCanvas)
+    props = gc.properties
+    proptypes = map(name -> Tables.gettype(props, name), propnames)
+    names = collect(Tables.columnnames(gc))
+    types = [eltype(gc.geometry), proptypes...]
+    return Tables.Schema(names, types)
+end
+
+@inline function Tables.getcolumn(gc::GeometryCanvas, i::Int)
+    if i == 1
+        gc.geoms[]
+    elseif 0 < i <= (length(properties) + 1)
+        gc.properties[i - 1][]
+    else
+        throw(ArgumentError("There is no table column $i"))
+    end
+end
+# Retrieve a column by name
+@inline function Tables.getcolumn(gc::GeometryCanvas, key::Symbol)
+    if key == :geometry
+        gc.geoms[]
+    elseif key in propertynames(gc.properties)
+        gc.properties[key][]
+    end
+end
+@inline function Tables.getcolumn(t::GeometryCanvas, ::Type{T}, i::Int, key::Symbol) where T
+    Tables.getcolumn(t, key)
+end
 
 # Ploting 
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
