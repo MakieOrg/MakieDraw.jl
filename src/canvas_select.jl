@@ -7,7 +7,6 @@ struct CanvasSelect{L} <: AbstractCanvasSelect
 end
 function CanvasSelect(m::Menu, ax::Axis; layers=Dict{Symbol,Observable{Bool}}())
     on(m.selection) do selected
-        @show selected
         for (key, active) in layers 
             active[] = key == Symbol(selected)
             notify(active)
