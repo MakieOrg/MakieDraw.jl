@@ -9,10 +9,16 @@ using Tyler
 using Extents
 provider = Google(:satelite)
 tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
+display(fig)
 fig = tyler.figure;
 axis = tyler.axis;
 
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+
 line_canvas = GeometryCanvas{LineString}(; fig, axis)
+
+Tables.istable(tyler)
 
 line_canvas.active[] = true
 point_canvas = GeometryCanvas{Point}(; fig, axis)

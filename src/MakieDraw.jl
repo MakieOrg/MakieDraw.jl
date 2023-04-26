@@ -1,6 +1,6 @@
 module MakieDraw
 
-using GeometryBasics, Makie
+using GeometryBasics, Makie, Tables
 
 const GI = GeometryBasics.GeoInterface
 
