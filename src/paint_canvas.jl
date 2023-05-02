@@ -16,6 +16,7 @@ mutable struct PaintCanvas{T,Fu,D,M<:AbstractMatrix{T},Fi,A} <: AbstractCanvas
     name::Symbol
     fig::Fi
     axis::A
+    on_mouse_events::Function
 end
 function PaintCanvas(data;
     f=heatmap!,
@@ -25,15 +26,17 @@ function PaintCanvas(data;
     dimensions=axes(data),
     fill_left=Observable(oneunit(eltype(data))),
     fill_right=Observable(zero(eltype(data))),
-    fig=Figure(),
+    figure=Figure(),
     axis=Axis(fig[1, 1]),
+    on_mouse_events=no_consume,
 )
     obs_args = map(_as_observable, (drawing, active, dimensions, data, fill_left, fill_right))
-    c = PaintCanvas{eltype(data),typeof(f),typeof(dimensions),typeof(data),typeof(fig),typeof(axis)
-                   }(f, obs_args..., name, fig, axis)
-    draw!(fig, axis, c)
+    c = PaintCanvas{eltype(data),typeof(f),typeof(dimensions),typeof(data),typeof(figure),typeof(axis)
+                   }(f, obs_args..., name, figure, axis, on_mouse_events)
+    draw!(figure, axis, c)
     return c
 end
+PaintCanvas(f, data; kw...) = PaintCanvas(data; f, kw...) 
 
 _as_observable(x) = Observable(x)
 _as_observable(x::Observable) = x
@@ -53,8 +56,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
 
         # If this canvas is not active dont respond to mouse events
         active[] || return Consume(false)
-
-        @show "click"
+        c.on_mouse_events(c, event) == Consume(false) || return
 
         # Get mouse position in the axis and figure
         axis_pos = Makie.mouseposition(ax.scene)
@@ -68,7 +70,6 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
             end
             lastpos[] = axis_pos
             if event.button == Mouse.left
-                @show "paint"
                 drawleft[] = true
                 paint!(c, c.fill_left[], axis_pos)
                 drawing[] = true

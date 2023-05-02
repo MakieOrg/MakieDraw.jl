@@ -33,17 +33,25 @@ using TileProviders
 using Tyler
 using Extents
 provider = Google(:satelite)
-tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
-fig = tyler.figure;
-axis = tyler.axis;
 
-line_canvas = GeometryCanvas{LineString}(; fig, axis)
+figure = Figure()
+axis = Axis(figure[1:10, 1:10])
+tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); 
+    figure, axis, provider=Google()
+)
+categories = Observable(Int[])
+point_canvas = GeometryCanvas{Point}(; 
+  figure, axis, properties=(; categories), mouse_property=:categories,
+  scatter_kw=(; color=categories, colorrange=(0, 2), colormap=:spring)
+)
+categories[]
+
+line_canvas = GeometryCanvas{LineString}(; figure, axis)
 
 line_canvas.active[] = true
-point_canvas = GeometryCanvas{Point}(; fig, axis)
+point_canvas.active[] = true
 
-point_canvas.active[] = false
-poly_canvas = GeometryCanvas{Polygon}(; fig, axis)
+poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
 
 layers = Dict(
     :point=>point_canvas.active, 

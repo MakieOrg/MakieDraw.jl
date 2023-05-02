@@ -21,6 +21,7 @@ mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A,Co} <: AbstractCanvas
     figure::F
     axis::A
     color::Co
+    on_mouse_events::Function
 end
 function GeometryCanvas(obj; propertynames=nothing, properties=nothing, kw...)
     if Tables.istable(typeof(obj))
@@ -58,6 +59,7 @@ function GeometryCanvas(obj; propertynames=nothing, properties=nothing, kw...)
     gb_geoms = GI.convert.(Ref(GeometryBasics), geoms)
     GeometryCanvas(Observable(gb_geoms); properties, kw...)
 end
+GeometryCanvas(on_mouse_events, obj; kw...) = GeometryCanvas(obj; on_mouse_events, kw...)
 function GeometryCanvas(obs::Observable; kw...)
     trait = GI.geomtrait(first(obs[]))
     T = GeometryBasics.geointerface_geomtype(trait)
@@ -70,8 +72,10 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     name=nameof(T),
     propertynames::Union{NTuple{<:Any,Symbol},Nothing}=nothing,
     properties::Union{NamedTuple,Nothing}=nothing,
+    click_property=nothing,
     figure=Figure(),
     axis=Axis(figure[1:10, 1:10]),
+    current_point=_current_point_obs(T),
     section=nothing,
     color=nothing,
     scatter_kw=(;),
@@ -79,29 +83,21 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     poly_kw=(;),
     current_point_kw=(;),
     show_current_point=false,
-) where T<:Union{Point,LineString,Polygon}
+    on_mouse_events=no_consume,
+    mouse_property=nothing,
+    text_input=true,
+) where T<:Union{Point,LineString,Polygon,MultiPoint}
     axis.aspect = AxisAspect(1)
     geoms = geoms isa Observable ? geoms : Observable(geoms)
 
     if T <: Point
-        # Convert geometries to nested points vectors so theyre easier to search and manipulate
-        points_obs = if length(geoms[]) > 0
-            Observable([Point2(GI.x(p), GI.y(p)) for p in geoms[]])
-        else
-            Observable(Point2{Float64}[])
-        end
-        geoms_obs = points_obs
-        current_point = Observable(1)
-        on(points_obs) do ps
-            geoms[] = ps
-        end
+        points_obs = geoms
     else
         points_obs = if length(geoms[]) > 0
-            Observable([[Point2(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms[]])
+            Observable(geoms_to_points(geoms[]))
         else
             ps = [[Point(1.0, 1.0)]]
             geoms[] = T.(ps)
-            Observable(ps)
         end
         # ps will be a Vector of Vector of Point
         # TODO support exteriors and holes with another layer of nesting?
@@ -110,26 +106,25 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
         on(points_obs) do ps
             geoms[] = T.(ps)
         end
-        current_point = Observable((1, 1))
     end
 
-    properties = if propertynames isa Tuple
-        map(properties) do p
-            Observable{Vector{String}}(String[" " for _ in geoms])
-        end |> NamedTuple{properties}
+    properties = if isnothing(properties) && propertynames isa Tuple
+        map(propertynames) do _
+            Vector{String}(String[" " for _ in geoms[]])
+        end |> NamedTuple{propertynames}
     else
         properties
     end
 
     properties = if properties isa NamedTuple
         map(properties) do p
-            Observable(p)
+            Makie.Observables.observe(p)
         end
     else
         nothing
     end
 
-    text_boxes = if isnothing(properties)
+    text_boxes = if isnothing(properties) || !text_input
         nothing
     else
         _make_property_text_inputs(figure, properties, current_point)
@@ -137,15 +132,20 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
 
     canvas = GeometryCanvas{T,map(typeof,(geoms,points_obs,current_point,section,properties,text_boxes,figure,axis,color))...}(
         geoms, points_obs, dragging, active, accuracy_scale, current_point, 
-        section, name, properties, text_boxes, figure, axis, color
+        section, name, properties, text_boxes, figure, axis, color, on_mouse_events
     )
 
     # Plot everying on `axis`
-    draw!(figure, axis, canvas; scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point)
-    addtoswitchers!(figure, axis, canvas)
-    add_mouse_events!(figure, axis, canvas)
+    draw!(figure, axis, canvas; 
+        scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point
+    )
+    addtoswitchers!(canvas)
+    add_events!(canvas; mouse_property)
     return canvas
 end
+
+_current_point_obs(::Type{<:Point}) = Observable(1)
+_current_point_obs(::Type) = Observable((1, 1))
 
 _geomtype(T) = T
 _geomtype(::Type{<:Point}) = Point2
@@ -292,6 +292,16 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
         draw_current_point!(fig, ax, c; scatter_kw) 
     end
 end
+function draw!(fig, ax::Axis, c::GeometryCanvas{<:MultiPoint};
+    scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
+    show_current_point=false,
+)
+    translate!(p, 0, 0, 98)
+    draw_points!(fig, ax, c; scatter_kw)
+    if show_current_point
+        draw_current_point!(fig, ax, c; scatter_kw) 
+    end
+end
 
 function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
     scatter_kw=(;),
@@ -323,14 +333,15 @@ function draw_current_point!(fig, ax::Axis, c::GeometryCanvas;
 end
 
 # Point selection and movement
-function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
+function add_events!(c::GeometryCanvas{<:Point};
+    mouse_property=nothing,
+)
+    fig = c.figure; ax = c.axis 
     # Mouse down event
-    on(events(ax.scene).mousebutton, priority = 100) do event
-
+    on(events(ax.scene).mousebutton, priority=100) do event
         # If this canvas is not active dont respond to mouse events
-        c.active[] || return Consume(false)
-
         (; geoms, points, dragging, active, section, accuracy_scale) = c
+        active[] || return Consume(false)
 
         # Set how close to a point we have to be to select it
         accuracy = _accuracy(ax, accuracy_scale)
@@ -339,205 +350,236 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::GeometryCanvas{<:Point})
 
         # Get mouse position in the axis and figure
         axis_pos = Makie.mouseposition(ax.scene)
-        fig_pos = Makie.mouseposition_px(fig.scene)
 
         # Add points with left click
-        if event.button == Mouse.left
-            if event.action == Mouse.press
-                if fig_pos in ax.scene.px_area[]
-                    section_points = _get(points, section)
-                    insert = false
-                    found = _pointnear(section_points, axis_pos, accuracy[]) do i
-                        if isnothing(i)
-                            nothing
-                        else
-                            idx[] = i
-                            true
-                        end
-                    end
-                    if isnothing(found)
-                        if !insert
-                            push!(section_points, axis_pos)
-                            idx[] = lastindex(section_points)
-                        end
-                        notify(points)
-                    end
-                    dragging[] = true
+        if event.action == Mouse.press
+            if Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+                found = _pointnear(points[], axis_pos, accuracy[]) do i
+                    idx[] = i
+                    true
                 end
-            elseif event.action == Mouse.release
-                dragging[] = false
+                if !found
+                    push!(points[], axis_pos)
+                    isnothing(mouse_property) || push!(c.properties[mouse_property][], Int(event.button))
+                    idx[] = lastindex(points[])
+                    notify(points)
+                    isnothing(mouse_property) || notify(c.properties[mouse_property])
+                end
+                dragging[] = true
+                return Consume(true)
+                return Consume(true)
             end
-        # Delete points with right click
-        elseif event.button == Mouse.right && 
-            event.action == Mouse.press && 
-            fig_pos in ax.scene.px_area[]
-            section_points = _get(points, section)
-            # Cant delete the last point currently...
-            if length(section_points) > 1
-                _pointnear(section_points, axis_pos, accuracy[]) do i
-                    isnothing(i) || deleteat!(section_points, i)
-                    # Set the current point to the previous one, or 1
-                    idx[] =  max(1, i-1)
-                end
-                notify(points)
+        elseif event.action == Mouse.release
+            if Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+                dragging[] = false
+                return Consume(true)
             end
         end
-        notify(idx)
         return Consume(dragging[])
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority = 100) do event
+    on(events(fig).mouseposition, priority=100) do event
         c.active[] || return Consume(false)
         if c.dragging[]
             axis_pos = Makie.mouseposition(ax.scene)
-            _get(c.points, c.section)[c.current_point[]] = axis_pos
+            c.points[][c.current_point[]] = axis_pos
             # notify(idx)
             notify(c.points)
             return Consume(true)
         end
         return Consume(false)
     end
+
+    on(events(fig).keyboardbutton, priority=100) do event
+        (; geoms, points, active, section) = c
+        active[] || return Consume(false)
+        (event.action in (Keyboard.press, Keyboard.repeat) && event.key == Keyboard.delete) || return Consume(false)
+
+        idx = c.current_point
+        # Delete points with delete
+        if length(points[]) > 0
+            deleteat!(points[], idx[])
+            isnothing(mouse_property) || deleteat!(c.properties[mouse_property][], idx[])
+            # Set the current point to the previous one, or 1
+            idx[] = max(1, idx[]-1)
+            notify(idx)
+            notify(points)
+            isnothing(mouse_property) || notify(c.properties[mouse_property])
+        end
+        return Consume(true)
+    end
 end
 
-# function _maybe_delete_point!(points, ax, section, accuracy, pos, idx)
-# end
+function add_events!(c::GeometryCanvas{T};
+    mouse_property=nothing,
+) where T <: Union{<:Polygon,<:LineString,<:MultiPoint}
+    fig = c.figure; ax = c.axis 
 
-function add_mouse_events!(fig, ax, c::GeometryCanvas{T}) where T <: Union{<:Polygon,<:LineString}
-
+    deleting = Observable(false)
 
     # Mouse down event
-    on(events(ax.scene).mousebutton, priority = 100) do event
-
+    on(events(ax.scene).mousebutton, priority=100) do event
         (; geoms, points, dragging, active, section, accuracy_scale) = c
+
+        active[] || return Consume(false)
+
+        # c.on_mouse_events(c, event) == Consume(true) && return nothing
 
         # Set how close to a point we have to be to select it
         accuracy = _accuracy(ax, accuracy_scale)
 
-        c.active[] || return Consume(false)
-
         idx = c.current_point
 
         pos = Makie.mouseposition(ax.scene)
-        fig_pos = Makie.mouseposition_px(fig.scene)
         # Add points with left click
-        if event.button == Mouse.left
-            cur_geom = _get(points, section)
-            if event.action == Mouse.press
-                if fig_pos in ax.scene.px_area[]
-                    insert = false
-                    if _is_shift_pressed(fig)
-                        push!(points[], [pos])
-                        idx[] = (lastindex(cur_geom), 1)
-                        found = true
-                    elseif _is_alt_pressed(fig)
-                        push!(points[], [pos])
-                        idx[] = (lastindex(cur_geom), 1)
-                        found = true
-                    else
-                        # See if the click is near a point
-                        found = _pointnear(points[], pos, accuracy[]) do I
-                            if isnothing(I)
-                                return nothing
-                            else
-                                idx[] = I
-                                return true
-                            end
-                        end
+        if event.action == Mouse.press && Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+            insert = false
+            if _is_alt_pressed(fig)
+                deleting[] = true
+                found = true
+                while found 
+                    found = _pointnear(c.points[], pos, c.accuracy_scale[] * 2) do I
+                        idx[] = I
+                        _delete_point!(c.points, idx)
+                        true
                     end
+                end
+                notify(points)
+                notify(idx)
+                return Consume(true)
+            elseif _is_shift_pressed(fig)
+                push!(points[], [pos])
+                idx[] = (lastindex(points[]), 1)
+                found = true
+            else
+                # See if the click is near a point
+                found = _pointnear(points[], pos, accuracy[]) do I
+                    idx[] = I
+                    true
+                end
+            end
 
-                    # If we didn't find a point close enough
-                    if isnothing(found)
-                        if length(cur_geom) > 0 && idx[][1] > 0 && length(cur_geom[idx[][1]]) > 1
-                            # Search backwards so we preference recent lines
-                            for i in eachindex(cur_geom)[end:-1:1]
-                                prevp = cur_geom[i][end]
-                                for j in eachindex(cur_geom[i])[end-1:-1:1]
-                                    curp = cur_geom[i][j]
-                                    line = Line(prevp, curp)
-                                    # TODO find the closest line not the first
-                                    online = _ison(line, pos, accuracy[] * 1000)
-                                    if online
-                                        insert = true
-                                        idx[] = (i, j + 1)
-                                        insert!(cur_geom[i], j + 1, pos)
-                                        break
-                                    end
-                                    prevp = curp
-                                end
+            # If we didn't find a point close enough
+            if !found
+                if length(points[]) > 0 && idx[][1] > 0 && length(points[][idx[][1]]) > 1
+                    # Search backwards so we preference recent lines
+                    for i in eachindex(points[])[end:-1:1]
+                        prevp = points[][i][end]
+                        for j in eachindex(points[][i])[end-1:-1:1]
+                            curp = points[][i][j]
+                            line = Line(prevp, curp)
+                            # TODO find the closest line not the first
+                            if T <: Union{LineString,Polygon} && _ison(line, pos, accuracy[] * 1000)
+                                insert = true
+                                idx[] = (i, j + 1)
+                                insert!(points[][i], j + 1, pos)
+                                break
                             end
+                            prevp = curp
                         end
-                        if !insert
-                            if length(cur_geom) > 0
-                                i = idx[][1]
-                                if i == 0
-                                    idx[] = (1, 1)
-                                elseif idx[][2] > length(cur_geom[i])
-                                    idx[] = (i, length(cur_geom[i]) + 1)
-                                else
-                                    idx[] = (i, idx[][2] + 1)
-                                end
-                                insert!(cur_geom[idx[][1]], idx[][2], pos)
-                            else
-                                idx[] = (1, 1)
-                                push!(cur_geom, [pos])
-                            end
+                        j = lastindex(points[][i])
+                        line = Line(points[][i][j], points[][i][1])
+                        if T <: Union{LineString,Polygon} && _ison(line, pos, accuracy[] * 1000)
+                            insert = true
+                            idx[] = (i, j)
+                            push!(points[][i], pos)
+                            break
                         end
                     end
-                    dragging[] = true
                 end
-            elseif event.action == Mouse.release
-                dragging[] = false
-            end
-            notify(points)
-            notify(idx)
-        # Delete points with right click
-        elseif event.button == Mouse.right
-            cur_geom = _get(points, section)
-            if _is_shift_pressed(fig)
-                for i in eachindex(points[])
-                    if pos in cur_geom[i]
-                        deleteat!(cur_geom, i)
+                if !insert
+                    if length(points[]) > 0
+                        i = idx[][1]
+                        if i == 0
+                            idx[] = (1, 1)
+                        elseif idx[][2] > length(points[][i])
+                            idx[] = (i, length(points[][i]) + 1)
+                        else
+                            idx[] = (i, idx[][2] + 1)
+                        end
+                        insert!(points[][idx[][1]], idx[][2], pos)
+                    else
                         idx[] = (1, 1)
-                        break
-                    end
-                end
-            elseif fig_pos in ax.scene.px_area[]
-                _pointnear(cur_geom, pos, accuracy[]) do I
-                    if !isnothing(I)
-                        deleteat!(cur_geom[I[1]], I[2])
-                        idx[] = (I[1], lastindex(cur_geom[I[1]]))
-                        if length(cur_geom[I[1]]) == 0
-                            deleteat!(cur_geom, I[1])
-                            if length(cur_geom) > 0
-                                s = max(1, I[1] - 1)
-                                idx[] = (s, lastindex(cur_geom[s]))
-                            else
-                                idx[] = (0, 0)
-                            end
-                        end
+                        push!(points[], [pos])
                     end
                 end
             end
-            notify(idx)
-            notify(points)
+            dragging[] = true
+        elseif event.action == Mouse.release
+            deleting[] = false
+            dragging[] = false
         end
+        notify(points)
+        notify(idx)
         return Consume(dragging[])
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority = 100) do mp
+    on(events(fig).mouseposition, priority=100) do mp
         c.active[] || return Consume(false)
         idx = c.current_point
-        if c.dragging[]
-            pos = Makie.mouseposition(ax.scene)
-            cur_polygon = _get(c.points, c.section)
-            cur_polygon[idx[][1]][idx[][2]] = Point(pos)
+        pos = Makie.mouseposition(ax.scene)
+        if deleting[] && _is_alt_pressed(fig)
+            found = true
+            while found 
+                found = _pointnear(c.points[], pos, c.accuracy_scale[] * 2) do I
+                    idx[] = I
+                    _delete_point!(c.points, idx)
+                    true
+                end
+            end
+            found && _delete_point!(c.points, idx)
+            notify(c.points)
+            notify(idx)
+            return Consume(true)
+        elseif c.dragging[]
+            i1, i2 = idx[]
+            c.points[][i1][i2] = Point(pos)
             notify(c.points)
             notify(idx)
             return Consume(true)
         end
-        Consume(false)
+        return Consume(false)
+    end
+
+    # Delete points delete
+    on(events(fig).keyboardbutton) do event
+        (; geoms, points, active, section) = c
+
+        active[] || return Consume(false)
+        (event.action in (Keyboard.press, Keyboard.repeat) && event.key == Keyboard.delete) || return Consume(false)
+
+        idx = c.current_point
+        i1, i2 = idx[]
+        if _is_shift_pressed(fig)
+            length(points[]) > 0 || return Consume(true)
+            # Delete whole polygon
+            deleteat!(points[], i1)
+            idx[] = (max(1, i1 - 1), 1)
+        else
+            length(points[][i1]) > 0 || return Consume(true)
+            # Delete point 
+            _delete_point!(points, idx)
+        end
+        notify(idx)
+        notify(points)
+        return Consume(true)
+    end
+end
+
+function _delete_point!(points, idx::Observable{<:Tuple})
+    i1, i2 = idx[]
+    deleteat!(points[][i1], i2)
+    idx[] = (i1, lastindex(points[][i1]))
+    if length(points[][i1]) == 0
+        deleteat!(points[], i1)
+        if length(points[]) > 0
+            s = max(1, i1 - 1)
+            idx[] = (s, lastindex(points[][s]))
+        else
+            idx[] = (0, 0)
+        end
     end
 end
 
@@ -548,7 +590,5 @@ function _accuracy(ax::Axis, accuracy_scale)
     end
 end
 
-_get(positions::Observable, section) = _get(positions[], section)
-_get(positions::Vector, section::Observable) = _get(positions, section[])
-_get(positions::Vector, section::Int) = positions[section]
-_get(positions::Vector, ::Nothing) = positions
+geoms_to_points(geoms) = 
+    [[Point2(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms]

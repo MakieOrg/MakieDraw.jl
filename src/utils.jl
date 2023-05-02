@@ -19,8 +19,8 @@ function arrow_key_navigation(fig, axis)
             _moveaxis(axis, (-s, 0))
         elseif event.key == Keyboard.down
             _moveaxis(axis, (0, -s))
-        elseif event.key == Keyboard.tab
-            _is_shift_pressed(fig) ? _previous_panel(layout, obs) : _next_panel(layout, obs)
+        # elseif event.key == Keyboard.tab
+            # ispressed(fig) ? _previous_panel(layout, obs) : _next_panel(layout, obs)
         end
         # Let the event reach other listeners
         return Consume(false)
@@ -46,11 +46,11 @@ function _pointnear(f, positions::Vector{<:Point}, pos, accuracy)
     for i in eachindex(positions)[end:-1:1]
         p = positions[i]
         if p[1] in (pos[1]-accuracy..pos[1]+accuracy) &&
-            p[2] in (pos[2]-accuracy..pos[2]+accuracy)
+           p[2] in (pos[2]-accuracy..pos[2]+accuracy)
             return f(i)
         end
     end
-    return nothing
+    return false
 end
 
 function _pointnear(f, positions::Vector{<:Vector}, pos, accuracy)
@@ -58,12 +58,12 @@ function _pointnear(f, positions::Vector{<:Vector}, pos, accuracy)
         for j in eachindex(positions[i])
             p = positions[i][j]
             if p[1] in (pos[1]-accuracy..pos[1]+accuracy) &&
-                p[2] in (pos[2]-accuracy..pos[2]+accuracy)
+               p[2] in (pos[2]-accuracy..pos[2]+accuracy)
                 return f((i, j))
             end
         end
     end
-    return nothing
+    return false
 end
 
 function _ison(line, point, accuracy)
@@ -89,3 +89,5 @@ function _ison(line, point, accuracy)
 end
 
 inbounds((x1, x2), x) = x >= min(x1, x2) && x <= max(x1, x2)
+
+no_consume(args...) = Consume(false)

@@ -25,10 +25,10 @@ Base.push!(ls::AbstractCanvasSelect, x::Pair{Symbol,Observable{Bool}}) = push!(l
 Base.getindex(ls::AbstractCanvasSelect, key::Symbol) = layers(ls)[key]
 Base.setindex!(ls::AbstractCanvasSelect, x::Observable{Bool}, key::Symbol) = layers(ls)[key] = x
 
-function addtoswitchers!(fig, ax::Axis, c::GeometryCanvas)
-    for x in fig.content
+function addtoswitchers!(c::GeometryCanvas)
+    for x in c.figure.content
         # Find all AbstractCanvasSelect on this Axis
-        if x isa AbstractCanvasSelect# && x.axis == ax
+        if x isa AbstractCanvasSelect # && x.axis == ax
             if haskey(x, c.name)
                 # Add the first number to the name that doesn't exist yet
                 i = 1

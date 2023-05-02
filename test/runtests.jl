@@ -40,6 +40,7 @@ polygons = GeoInterface.convert.(Ref(GeoInterface), poly_canvas.geoms[])
 mp = GeoInterface.MultiPolygon(polygons)
 GeoJSON.write("multipolygon.json", mp)
 
+
 # Reload and edit again
 polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json"))))
 tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
