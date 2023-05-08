@@ -1,6 +1,6 @@
 using MakieDraw
 using Test
-using GLMakie
+using Makie
 using GeometryBasics
 using GeoJSON
 using GeoInterface
@@ -44,3 +44,4 @@ polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json")))
 figure = Figure()
 axis = Axis(figure[1, 1])
 poly_canvas = GeometryCanvas(polygons; figure, axis)
+
