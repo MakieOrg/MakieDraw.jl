@@ -59,7 +59,7 @@ layers = Dict(
     :poly=>poly_canvas.active,
 )
 
-MakieDraw.CanvasSelect(fig[2, 1], axis; layers)
+MakieDraw.CanvasSelect(fig[11, 1], axis; layers)
 
 # Write the polygons to JSON
 # Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193
@@ -72,7 +72,7 @@ polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json")))
 tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); provider)
 fig = tyler.figure;
 axis = tyler.axis;
-poly_canvas = GeometryCanvas(polygons; fig, axis)
+poly_canvas = GeometryCanvas(polygons; figure, axis)
 ```
 
 `GeometryCanvas` keys:
