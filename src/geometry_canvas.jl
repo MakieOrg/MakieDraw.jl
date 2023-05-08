@@ -1,11 +1,40 @@
 """
-    GeometryCanvas{T<:GeometryBasics.Geometry}
+    GeometryCanvas{T<:GeometryBasics.Geometry} <: AbstractCanvas
 
-    GeometryCanvas{T}(geoms=T[]; kw...)
+    GeometryCanvas{T}(; kw...)
 
 A canvas for drawing GeometryBasics.jl geometries onto a Makie.jl `Axis`.
 
 `T` must be `Point`, `LineString` or `Polygon`.
+
+# Mouse and Key commands
+
+- Left click select point, or add point with property 1 if `click_property` is set.
+- Rick click select point, or add point with property 2 if `click_property` is set.
+- Middle click select point, or add point with property 3 if `click_property` is set.
+- Alt+click: delete points, dragging will click is held will continue deleting.
+- Shift+click: start new polygons and linstrings on `Polygon` and `LineString` canvas. Has no effect for `Point`.
+- Delete: delete selected points.
+- Shift+Delete: delete selected linestring/polygon.
+
+# Keywords
+
+- `dragging`: an Observable{Bool}(false) to track mouse dragging.
+- `active`: an Observable{Bool}(true) to set if the canvas is active.
+- `accuracy_scale`: control how accurate selection needs to be. `1.0` by default.
+- `name`: A `Symbol`: name for the canvas. Will appear in a [`CanvasSelect`](@ref).
+- `propertynames`: names for feaure properties to create.
+- `properties`: an existin table of properties.
+- `click_property`: which property is set with left and right click, shold be a `Bool`.
+- `figure`: a figure to plot on.
+- `axis`: an axis to plot on.
+- `current_point`: an observable to track the currently focused point index.
+- `scatter_kw`: keywords to pass to `scatter`.
+- `lines_kw`: keywords to pass to `lines`.
+- `poly_kw`: keywords to pass to `poly`.
+- `current_point_kw`: keywords for the current point `scatter`. 
+- `show_current_point`: whether to show the current point differently to the other.
+- `text_input`: wether to add text input boxes for property input.
 """
 mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A,Co} <: AbstractCanvas
     geoms::G
@@ -98,6 +127,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
         else
             ps = [[Point(1.0, 1.0)]]
             geoms[] = T.(ps)
+            Observable(ps)
         end
         # ps will be a Vector of Vector of Point
         # TODO support exteriors and holes with another layer of nesting?
@@ -337,14 +367,16 @@ function add_events!(c::GeometryCanvas{<:Point};
     mouse_property=nothing,
 )
     fig = c.figure; ax = c.axis 
+    deleting = Observable(false)
+
+    # Set how close to a point we have to be to select it
+    accuracy = _accuracy(ax, c.accuracy_scale)
+
     # Mouse down event
     on(events(ax.scene).mousebutton, priority=100) do event
         # If this canvas is not active dont respond to mouse events
-        (; geoms, points, dragging, active, section, accuracy_scale) = c
+        (; geoms, points, dragging, active, section) = c
         active[] || return Consume(false)
-
-        # Set how close to a point we have to be to select it
-        accuracy = _accuracy(ax, accuracy_scale)
 
         idx = c.current_point
 
@@ -354,6 +386,16 @@ function add_events!(c::GeometryCanvas{<:Point};
         # Add points with left click
         if event.action == Mouse.press
             if Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+                if _is_alt_pressed(fig)
+                    deleting[] = true
+                    found = _pointnear(c.points[], axis_pos, accuracy[] * 2) do I
+                        _delete_point!(c.points, idx, I)
+                        true
+                    end
+                    notify(points)
+                    notify(idx)
+                    return Consume(true)
+                end
                 found = _pointnear(points[], axis_pos, accuracy[]) do i
                     idx[] = i
                     true
@@ -391,7 +433,7 @@ function add_events!(c::GeometryCanvas{<:Point};
         return Consume(false)
     end
 
-    on(events(fig).keyboardbutton, priority=100) do event
+    on(events(ax.scene).keyboardbutton, priority=100) do event
         (; geoms, points, active, section) = c
         active[] || return Consume(false)
         (event.action in (Keyboard.press, Keyboard.repeat) && event.key == Keyboard.delete) || return Consume(false)
@@ -417,21 +459,21 @@ function add_events!(c::GeometryCanvas{T};
     fig = c.figure; ax = c.axis 
 
     deleting = Observable(false)
+    accuracy = _accuracy(ax, c.accuracy_scale)
 
     # Mouse down event
     on(events(ax.scene).mousebutton, priority=100) do event
-        (; geoms, points, dragging, active, section, accuracy_scale) = c
+        (; geoms, points, dragging, active, section) = c
 
         active[] || return Consume(false)
 
         # c.on_mouse_events(c, event) == Consume(true) && return nothing
 
         # Set how close to a point we have to be to select it
-        accuracy = _accuracy(ax, accuracy_scale)
 
         idx = c.current_point
 
-        pos = Makie.mouseposition(ax.scene)
+        axis_pos = Makie.mouseposition(ax.scene)
         # Add points with left click
         if event.action == Mouse.press && Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
             insert = false
@@ -439,9 +481,8 @@ function add_events!(c::GeometryCanvas{T};
                 deleting[] = true
                 found = true
                 while found 
-                    found = _pointnear(c.points[], pos, c.accuracy_scale[] * 2) do I
-                        idx[] = I
-                        _delete_point!(c.points, idx)
+                    found = _pointnear(c.points[], axis_pos, accuracy[] * 2) do I
+                        _delete_point!(c.points, idx, I)
                         true
                     end
                 end
@@ -449,12 +490,12 @@ function add_events!(c::GeometryCanvas{T};
                 notify(idx)
                 return Consume(true)
             elseif _is_shift_pressed(fig)
-                push!(points[], [pos])
+                push!(points[], [axis_pos])
                 idx[] = (lastindex(points[]), 1)
                 found = true
             else
                 # See if the click is near a point
-                found = _pointnear(points[], pos, accuracy[]) do I
+                found = _pointnear(points[], axis_pos, accuracy[]) do I
                     idx[] = I
                     true
                 end
@@ -470,20 +511,20 @@ function add_events!(c::GeometryCanvas{T};
                             curp = points[][i][j]
                             line = Line(prevp, curp)
                             # TODO find the closest line not the first
-                            if T <: Union{LineString,Polygon} && _ison(line, pos, accuracy[] * 1000)
+                            if T <: Union{LineString,Polygon} && _ison(line, axis_pos, accuracy[] * 1000)
                                 insert = true
                                 idx[] = (i, j + 1)
-                                insert!(points[][i], j + 1, pos)
+                                insert!(points[][i], j + 1, axis_pos)
                                 break
                             end
                             prevp = curp
                         end
                         j = lastindex(points[][i])
                         line = Line(points[][i][j], points[][i][1])
-                        if T <: Union{LineString,Polygon} && _ison(line, pos, accuracy[] * 1000)
+                        if T <: Union{LineString,Polygon} && _ison(line, axis_pos, accuracy[] * 1000)
                             insert = true
                             idx[] = (i, j)
-                            push!(points[][i], pos)
+                            push!(points[][i], axis_pos)
                             break
                         end
                     end
@@ -498,10 +539,10 @@ function add_events!(c::GeometryCanvas{T};
                         else
                             idx[] = (i, idx[][2] + 1)
                         end
-                        insert!(points[][idx[][1]], idx[][2], pos)
+                        insert!(points[][idx[][1]], idx[][2], axis_pos)
                     else
                         idx[] = (1, 1)
-                        push!(points[], [pos])
+                        push!(points[], [axis_pos])
                     end
                 end
             end
@@ -519,23 +560,21 @@ function add_events!(c::GeometryCanvas{T};
     on(events(fig).mouseposition, priority=100) do mp
         c.active[] || return Consume(false)
         idx = c.current_point
-        pos = Makie.mouseposition(ax.scene)
+        axis_pos = Makie.mouseposition(ax.scene)
         if deleting[] && _is_alt_pressed(fig)
             found = true
             while found 
-                found = _pointnear(c.points[], pos, c.accuracy_scale[] * 2) do I
-                    idx[] = I
-                    _delete_point!(c.points, idx)
+                found = _pointnear(c.points[], axis_pos, accuracy[]) do I
+                    _delete_point!(c.points, idx, I)
                     true
                 end
             end
-            found && _delete_point!(c.points, idx)
             notify(c.points)
             notify(idx)
             return Consume(true)
         elseif c.dragging[]
             i1, i2 = idx[]
-            c.points[][i1][i2] = Point(pos)
+            c.points[][i1][i2] = Point(axis_pos)
             notify(c.points)
             notify(idx)
             return Consume(true)
@@ -544,7 +583,7 @@ function add_events!(c::GeometryCanvas{T};
     end
 
     # Delete points delete
-    on(events(fig).keyboardbutton) do event
+    on(events(ax.scene).keyboardbutton) do event
         (; geoms, points, active, section) = c
 
         active[] || return Consume(false)
@@ -560,7 +599,7 @@ function add_events!(c::GeometryCanvas{T};
         else
             length(points[][i1]) > 0 || return Consume(true)
             # Delete point 
-            _delete_point!(points, idx)
+            _delete_point!(points, idx, idx[])
         end
         notify(idx)
         notify(points)
@@ -568,8 +607,8 @@ function add_events!(c::GeometryCanvas{T};
     end
 end
 
-function _delete_point!(points, idx::Observable{<:Tuple})
-    i1, i2 = idx[]
+function _delete_point!(points, idx::Observable{<:Tuple}, I)
+    i1, i2 = I
     deleteat!(points[][i1], i2)
     idx[] = (i1, lastindex(points[][i1]))
     if length(points[][i1]) == 0
@@ -581,6 +620,13 @@ function _delete_point!(points, idx::Observable{<:Tuple})
             idx[] = (0, 0)
         end
     end
+    return nothing
+end
+function _delete_point!(points, idx::Observable{Int}, i::Int)
+    @show i idx
+    deleteat!(points[], i)
+    idx[] = i - 1
+    return nothing
 end
 
 # Get pixel click accuracy from the size of the visable heatmap.

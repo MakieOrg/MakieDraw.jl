@@ -4,7 +4,7 @@ using GeometryBasics, Makie, Tables
 
 const GI = GeometryBasics.GeoInterface
 
-export GeometryCanvas, CanvasSelect
+export GeometryCanvas, PaintCanvas, CanvasSelect
 
 abstract type AbstractCanvas end
 

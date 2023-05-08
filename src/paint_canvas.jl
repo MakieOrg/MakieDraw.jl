@@ -1,36 +1,65 @@
 """
-    PaintCanvas{T<:GeometryBasics.Geometry}
+    PaintCanvas <: AbstractCanvas
 
-    PaintCanvas{T}(geoms=T[]; kw...)
+    PaintCanvas(; kw...)
+    PaintCanvas(f, data; kw...)
 
 A canvas for painting into a Matrix Real numbers or colors.
+
+# Arguments
+
+- `data`: an `AbstractMatrix` that will plot with `Makie.image!`, or your function `f`
+- `f`: a function, like `image!` or `heatmap!, ` that will plot `f(axis, dimsions..., data)` onto `axis`.
+
+# Keywords
+
+- `dimension`: the dimesion ticks of data. `axes(data)` by default.
+- `drawing`: an Observable{Bool}(false) to track if drawing is occuring.
+- `drawbutton`: the currently clicked mouse button while drawing, e.g. Mouse.left.
+- `active`: an Observable{Bool}(true) to set if the canvas is active.
+- `name`: A `Symbol`: name for the canvas. Will appear in a [`CanvasSelect`](@ref).
+- `figure`: a figure to plot on.
+- `axis`: an axis to plot on.
+- `fill_left`: Observable value for left click drawing.
+- `fill_right`: Observable value for right click drawing.
+- `fill_middle`: Observable value for middle click drawing.
+
+# Mouse and Key commands
+
+- Left click/drag: draw with value of `fill_left`
+- Right click/drag: draw with value of `fill_right`
+- Middle click/drag: draw with value of `fill_middle`
 """
 mutable struct PaintCanvas{T,Fu,D,M<:AbstractMatrix{T},Fi,A} <: AbstractCanvas
     f::Fu
     drawing::Observable{Bool}
+    drawbutton::Observable{Any}
     active::Observable{Bool}
     dimensions::Observable{D}
     data::Observable{M}
     fill_left::Observable{T}
     fill_right::Observable{T}
+    fill_middle::Observable{T}
     name::Symbol
     fig::Fi
     axis::A
     on_mouse_events::Function
 end
-function PaintCanvas(data;
-    f=heatmap!,
+function PaintCanvas(data::AbstractMatrix;
+    f=(axis, xs, ys, v) -> image!(axis, xs, ys, v; interpolate=false, colormap=:inferno),
     drawing=Observable{Bool}(false),
+    drawbutton=Observable{Any}(Mouse.left),
     active=Observable{Bool}(true),
     name=nameof(typeof(data)),
     dimensions=axes(data),
     fill_left=Observable(oneunit(eltype(data))),
     fill_right=Observable(zero(eltype(data))),
+    fill_middle=Observable(zero(eltype(data))),
     figure=Figure(),
     axis=Axis(fig[1, 1]),
     on_mouse_events=no_consume,
 )
-    obs_args = map(_as_observable, (drawing, active, dimensions, data, fill_left, fill_right))
+    obs_args = map(_as_observable, (drawing, drawbutton, active, dimensions, data, fill_left, fill_right, fill_middle))
     c = PaintCanvas{eltype(data),typeof(f),typeof(dimensions),typeof(data),typeof(figure),typeof(axis)
                    }(f, obs_args..., name, figure, axis, on_mouse_events)
     draw!(figure, axis, c)
@@ -50,8 +79,7 @@ end
 
 function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
     lastpos = Observable{Any}()
-    drawleft = Observable(true)
-    (; drawing, active) = c
+    (; drawing, drawbutton, active) = c
     on(events(ax.scene).mousebutton, priority = 100) do event
 
         # If this canvas is not active dont respond to mouse events
@@ -70,14 +98,19 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
             end
             lastpos[] = axis_pos
             if event.button == Mouse.left
-                drawleft[] = true
-                paint!(c, c.fill_left[], axis_pos)
+                drawbutton[] = event.button
                 drawing[] = true
+                paint!(c, c.fill_left[], axis_pos)
                 return Consume(true)
             elseif event.button == Mouse.right
-                drawleft[] = false
-                paint!(c, c.fill_right[], axis_pos)
                 drawing[] = true
+                drawbutton[] = event.button
+                paint!(c, c.fill_right[], axis_pos)
+                return Consume(true)
+            elseif event.button == Mouse.middle
+                drawbutton[] = event.button
+                drawing[] = true
+                paint!(c, c.fill_middle[], axis_pos)
                 return Consume(true)
             end
         elseif event.action == Mouse.release
@@ -97,7 +130,13 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
                 drawing[] = false
                 return Consume(false)
             end
-            fill = drawleft[] ? c.fill_left[] : c.fill_right[]
+            fill = if drawbutton[] == Mouse.left
+                c.fill_left[]
+            elseif drawbutton[] == Mouse.right
+                c.fill_right[]
+            elseif drawbutton[] == Mouse.middle
+                c.fill_middle[]
+            end
             line = (start=(x=lastpos[][2], y=lastpos[][1]),
                     stop=(x=axis_pos[2], y=axis_pos[1]))
             paint_line!(c.data[], c.dimensions[]..., fill, line)

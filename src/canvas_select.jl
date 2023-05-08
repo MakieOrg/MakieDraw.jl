@@ -1,5 +1,32 @@
 abstract type AbstractCanvasSelect <: Makie.Block end
 
+"""
+    CanvasSelect <: AbstractCanvasSelect 
+
+A menu widget for selecting active canvases.
+
+It will deactivate all non-selected canvases, and select the active one.
+
+# Arguments
+- `figure::Union{Figure,GridPosition}` a Figure or `GridPosition`.
+- `ax::Axis`: the `Axis` the canvases are on.
+
+# Keywords
+- `layers`: Dict{Symbol,Orbservable{bool}
+
+# Example
+
+```julia
+layers = Dict(
+    :paint=>paint_canvas.active, 
+    :point=>point_canvas.active, 
+    :line=>line_canvas.active,
+    :poly=>poly_canvas.active,
+)
+
+MakieDraw.CanvasSelect(figure[2, 1], axis; layers)
+```
+"""
 struct CanvasSelect{L} <: AbstractCanvasSelect 
     layers::L
     menu::Menu
