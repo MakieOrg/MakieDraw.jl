@@ -115,6 +115,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     on_mouse_events=no_consume,
     mouse_property=nothing,
     text_input=true,
+    input_layout=GridLayout(figure[11, 1]), 
 ) where T<:Union{Point,LineString,Polygon,MultiPoint}
     axis.aspect = AxisAspect(1)
     geoms = geoms isa Observable ? geoms : Observable(geoms)
@@ -148,7 +149,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
 
     properties = if properties isa NamedTuple
         map(properties) do p
-            Makie.Observables.observe(p)
+            p isa Observable ? p : Observable(p)
         end
     else
         nothing
@@ -157,7 +158,7 @@ function GeometryCanvas{T}(geoms=Observable(_geomtype(T)[]);
     text_boxes = if isnothing(properties) || !text_input
         nothing
     else
-        _make_property_text_inputs(figure, properties, current_point)
+        _make_property_text_inputs(figure, properties, current_point, input_layout)
     end
 
     canvas = GeometryCanvas{T,map(typeof,(geoms,points_obs,current_point,section,properties,text_boxes,figure,axis,color))...}(
@@ -180,18 +181,19 @@ _current_point_obs(::Type) = Observable((1, 1))
 _geomtype(T) = T
 _geomtype(::Type{<:Point}) = Point2
 
-function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable)
+function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable, input_layout)
     i = 0
     map(properties) do props
         i += 1
-        tb = Textbox(fig[11, i]; stored_string=" ")
+        tb = Textbox(input_layout[1, i]; stored_string=" ")
         T = eltype(props[])
         on(tb.stored_string) do t
             propsvec = props[]
-            for i in 1:current_point[][1]-length(propsvec)
-                if T isa AbstractString
+            n = current_point[][1]
+            while length(propsvec) < n
+                if <: isa AbstractString
                     push!(propsvec, " ")
-                elseif T isa Real
+                elseif <: isa Real
                     push!(propsvec, zero(T))
                 end
             end
@@ -200,14 +202,19 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
         end
         on(current_point) do cp
             propsvec = props[]
-            for i in 1:cp[1]-length(propsvec)
-                if T isa AbstractString
+            n = cp[1]
+            while length(propsvec) < n
+                if T <: AbstractString
                     push!(propsvec, " ")
-                elseif T isa Real
+                elseif T <: Real
                     push!(propsvec, zero(T))
+                else
+                    error("Only String and Real properties are supported")
                 end
             end
-            tb.displayed_string[] = lpad(propsvec[cp[1]], 1)
+            @assert n <= length(propsvec)
+
+            tb.displayed_string[] = lpad(propsvec[n], 1)
             notify(tb.displayed_string)
         end
     end
@@ -623,7 +630,6 @@ function _delete_point!(points, idx::Observable{<:Tuple}, I)
     return nothing
 end
 function _delete_point!(points, idx::Observable{Int}, i::Int)
-    @show i idx
     deleteat!(points[], i)
     idx[] = i - 1
     return nothing
