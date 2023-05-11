@@ -191,9 +191,9 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
             propsvec = props[]
             n = current_point[][1]
             while length(propsvec) < n
-                if <: isa AbstractString
+                if <: AbstractString
                     push!(propsvec, " ")
-                elseif <: isa Real
+                elseif <: Real
                     push!(propsvec, zero(T))
                 end
             end
