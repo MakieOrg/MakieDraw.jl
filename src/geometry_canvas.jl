@@ -395,7 +395,7 @@ function add_events!(c::GeometryCanvas{<:Point};
             if Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
                 if _is_alt_pressed(fig)
                     deleting[] = true
-                    found = _pointnear(c.points[], axis_pos, accuracy[] * 2) do I
+                    found = _pointnearest(c.points[], axis_pos, accuracy[] * 2) do I
                         _delete_point!(c.points, idx, I)
                         true
                     end
@@ -403,7 +403,7 @@ function add_events!(c::GeometryCanvas{<:Point};
                     notify(idx)
                     return Consume(true)
                 end
-                found = _pointnear(points[], axis_pos, accuracy[]) do i
+                found = _pointnearest(points[], axis_pos, accuracy[]) do i
                     idx[] = i
                     true
                 end
@@ -488,7 +488,7 @@ function add_events!(c::GeometryCanvas{T};
                 deleting[] = true
                 found = true
                 while found 
-                    found = _pointnear(c.points[], axis_pos, accuracy[] * 2) do I
+                    found = _pointnearest(c.points[], axis_pos, accuracy[] * 2) do I
                         _delete_point!(c.points, idx, I)
                         true
                     end
@@ -502,7 +502,7 @@ function add_events!(c::GeometryCanvas{T};
                 found = true
             else
                 # See if the click is near a point
-                found = _pointnear(points[], axis_pos, accuracy[]) do I
+                found = _pointnearest(points[], axis_pos, accuracy[]) do I
                     idx[] = I
                     true
                 end
@@ -571,7 +571,7 @@ function add_events!(c::GeometryCanvas{T};
         if deleting[] && _is_alt_pressed(fig)
             found = true
             while found 
-                found = _pointnear(c.points[], axis_pos, accuracy[]) do I
+                found = _pointnearest(c.points[], axis_pos, accuracy[]) do I
                     _delete_point!(c.points, idx, I)
                     true
                 end
