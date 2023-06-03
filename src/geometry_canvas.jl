@@ -150,7 +150,6 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
             geoms[] = T1.(ps)
         end
     end
-    @show points_obs
 
     properties = if isnothing(properties) && propertynames isa Tuple
         map(propertynames) do _
@@ -696,7 +695,6 @@ end
 # Get pixel click accuracy from the size of the visable heatmap.
 function _accuracy(ax::Axis, accuracy_scale)
     lift(ax.finallimits) do fl
-        println(stdout, fl.widths)
         maximum(fl.widths) / accuracy_scale * 100
     end
 end
