@@ -42,7 +42,20 @@ function CanvasSelect(m::Menu, ax::Axis; layers=Dict{Symbol,Observable{Bool}}())
     CanvasSelect(layers, m, ax)
 end
 function CanvasSelect(fig::Union{Figure,GridPosition}, ax::Axis; layers=[])
-    m = Menu(fig; options=collect(keys(layers)))
+    found_active = false
+    default = "none"
+    for (key, active) in pairs(layers)
+        # Only the first active layer can stay active
+        if !found_active && active[] 
+            found_active = true
+            default = string(key)
+        else
+            active[] = false
+        end
+    end
+    options = map(string, collect(keys(layers)))
+    @show options default
+    m = Menu(fig; options, default)
     CanvasSelect(m, ax; layers)
 end
 

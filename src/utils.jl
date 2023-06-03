@@ -42,28 +42,43 @@ function _is_alt_pressed(fig)
     Makie.Keyboard.left_alt in pressed || Makie.Keyboard.right_alt in pressed
 end
 
-function _pointnear(f, positions::Vector{<:Point}, pos, accuracy)
-    for i in eachindex(positions)[end:-1:1]
+function _pointnearest(f, positions::Vector{<:Point}, pos, accuracy)
+    length(positions) > 0 || return false
+    mindistance = Inf
+    minindex = 0
+    for i in eachindex(positions)
         p = positions[i]
-        if p[1] in (pos[1]-accuracy..pos[1]+accuracy) &&
-           p[2] in (pos[2]-accuracy..pos[2]+accuracy)
-            return f(i)
+        distance = sqrt((p[1] - pos[1])^2 * (p[2] - pos[2])^2)
+        if distance < mindistance
+            mindistance = distance
+            minindex = i
         end
     end
-    return false
+    if (mindistance < accuracy) && (minindex != 0)
+        return f(minindex)
+    else
+        return false
+    end
 end
-
-function _pointnear(f, positions::Vector{<:Vector}, pos, accuracy)
-    for i in eachindex(positions)[end:-1:1]
+function _pointnearest(f, positions::Vector{<:Vector}, pos, accuracy)
+    length(positions) > 0 || return false
+    mindistance = Inf
+    minindex = (0, 0)
+    for i in eachindex(positions)
         for j in eachindex(positions[i])
             p = positions[i][j]
-            if p[1] in (pos[1]-accuracy..pos[1]+accuracy) &&
-               p[2] in (pos[2]-accuracy..pos[2]+accuracy)
-                return f((i, j))
+            distance = sqrt((p[1] - pos[1])^2 * (p[2] - pos[2])^2)
+            if distance < mindistance
+                mindistance = distance
+                minindex = (i, j)
             end
         end
     end
-    return false
+    if (mindistance < accuracy) && (minindex != (0, 0))
+        return f(minindex)
+    else
+        return false
+    end
 end
 
 function _ison(line, point, accuracy)

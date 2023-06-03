@@ -34,21 +34,22 @@ using Tyler
 using Extents
 provider = Google(:satelite)
 
+
 figure = Figure()
-axis = Axis(figure[1:10, 1:10])
+axis = Axis(figure[1, 1])
+
 tyler = Tyler.Map(Extent(Y=(-27.0, 0.025), X=(0.04, 38.0)); 
     figure, axis, provider=Google()
 )
 categories = Observable(Int[])
-point_canvas = GeometryCanvas{Point}(; 
+point_canvas = GeometryCanvas{Point2}(; 
   figure, axis, properties=(; categories), mouse_property=:categories,
   scatter_kw=(; color=categories, colorrange=(0, 2), colormap=:spring)
 )
-categories[]
 
 line_canvas = GeometryCanvas{LineString}(; figure, axis)
 
-line_canvas.active[] = true
+line_canvas.active[] = false
 point_canvas.active[] = true
 
 poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
@@ -59,7 +60,7 @@ layers = Dict(
     :poly=>poly_canvas.active,
 )
 
-MakieDraw.CanvasSelect(fig[11, 1], axis; layers)
+MakieDraw.CanvasSelect(figure[3, 1], axis; layers)
 
 # Write the polygons to JSON
 # Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193

@@ -6,7 +6,7 @@ using GeoJSON
 using GeoInterface
 
 figure = Figure()
-axis = Axis(figure[1, 1])
+axis = Axis(figure[1:10, 1:10])
 
 paint_canvas = PaintCanvas(falses(100, 100); figure, axis)
 
@@ -20,7 +20,8 @@ point_canvas = GeometryCanvas{Point}(; figure, axis)
 
 point_canvas.active[] = false
 
-poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
+polys = [Polygon([Point(1.0, 2.0), Point(2.0, 3.0), Point(3.0, 1.0), Point(1.0, 2.0)])]
+poly_canvas = GeometryCanvas(polys; figure, axis);
 
 layers = Dict(
     :paint=>paint_canvas.active, 
@@ -39,9 +40,11 @@ GeoJSON.write("multipolygon.json", mp)
 
 
 # Reload and edit again on a new figure
-polygons = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json"))))
+geojson_polys = collect(GeoInterface.getgeom(GeoJSON.read(read("multipolygon.json"))))
 
 figure = Figure()
 axis = Axis(figure[1, 1])
-poly_canvas = GeometryCanvas(polygons; figure, axis)
+polys = [Polygon([Point(1.0, 2.0), Point(2.0, 3.0), Point(3.0, 1.0), Point(1.0, 2.0)])]
+poly!(polys)
+poly_canvas = GeometryCanvas(geojson_polys; figure, axis);
 
