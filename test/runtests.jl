@@ -6,7 +6,7 @@ using GeoJSON
 using GeoInterface
 
 figure = Figure()
-axis = Axis(figure[1, 1])
+axis = Axis(figure[1:10, 1:10])
 
 paint_canvas = PaintCanvas(falses(100, 100); figure, axis)
 
