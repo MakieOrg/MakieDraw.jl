@@ -123,10 +123,10 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
 
     geoms = if geoms isa Observable 
         geoms
-    elseif eltype(geoms) isa T
+    elseif eltype(geoms) <: T
         Observable(geoms)
     else
-        Observable(T[GI.convert(GeometryBasics, g) for g in geoms])
+        Observable([GI.convert(GeometryBasics, g) for g in geoms])
     end
 
     T1 = T <: Nothing ? eltype(geoms[]) : T
@@ -192,7 +192,7 @@ _current_point_obs(::Type{<:Point}) = Observable(1)
 _current_point_obs(::Type) = Observable((1, 1))
 
 _geomtype(T) = T
-_geomtype(::Type{<:Point}) = Point2
+_geomtype(::Type{<:Point}) = Point2f
 
 function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable, input_layout)
     i = 0
@@ -342,6 +342,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
+    @show c.geoms
     # TODO first plot as a line and switch to a polygon when you close it to the first point.
     # This will need all new polygons to be a line stored in a separate Observable
     # that we plot like LineString.
@@ -370,11 +371,12 @@ end
 function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
     scatter_kw=(;),
 )
+    @show eltype(c.geoms[])
     # All points
     s = if isnothing(c.color)
-        scatter!(ax, c.geoms; scatter_kw...)
+        scatter!(ax, c.geoms)#; scatter_kw...)
     else
-        scatter!(ax, c.geoms; color=c.color, scatter_kw...)
+        scatter!(ax, c.geoms)#; color=c.color, scatter_kw...)
     end
     translate!(s, 0, 0, 98)
 end
