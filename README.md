@@ -78,9 +78,11 @@ poly_canvas = GeometryCanvas(polygons; figure, axis)
 
 `GeometryCanvas` keys:
 
-Left click to add, grab or drag points, right click to remove them.
+Cick to add, grab or drag points. Left/Right/Center can be used for data entry of `0/1/2` with the `mouseproperty` keyword.
 
-Shift + left click starts new lines and polygons.
+Shift + click starts new lines and polygons.
+
+Alt + click deletes points, hold and drag continues deleting them.
 
 `PaintCanvas` keys:
 
