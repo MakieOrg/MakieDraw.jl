@@ -151,27 +151,7 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
         end
     end
 
-    properties = if isnothing(properties) && propertynames isa Tuple
-        map(propertynames) do _
-            Vector{String}(String[" " for _ in geoms[]])
-        end |> NamedTuple{propertynames}
-    else
-        properties
-    end
-
-    properties = if properties isa NamedTuple
-        map(properties) do p
-            p isa Observable ? p : Observable(p)
-        end
-    else
-        nothing
-    end
-
-    text_boxes = if isnothing(properties) || !text_input
-        nothing
-    else
-        _make_property_text_inputs(figure, properties, current_point, input_layout)
-    end
+    properties, text_boxes = _initialise_properties(figure, properties, propertynames, current_point, input_layout, text_input)
 
     types = map(typeof, (geoms,points_obs,current_point,section,properties,text_boxes,figure,axis,color))
     canvas = GeometryCanvas{T1,types...}(
@@ -193,6 +173,33 @@ _current_point_obs(::Type) = Observable((1, 1))
 
 _geomtype(T) = T
 _geomtype(::Type{<:Point}) = Point2f
+
+function _initialise_properties(figure, properties, propertynames, current_point, input_layout, text_input)
+    properties = if isnothing(properties) && propertynames isa Tuple
+        map(propertynames) do _
+            Vector{String}(String[" " for _ in geoms[]])
+        end |> NamedTuple{propertynames}
+    else
+        properties
+    end
+    properties = if properties isa NamedTuple
+        map(properties) do p
+            p isa Observable ? p : Observable(p)
+        end
+    else
+        nothing
+    end
+
+    text_boxes = if isnothing(properties) || !text_input
+        nothing
+    else
+        _make_property_text_inputs(figure, properties, current_point, input_layout)
+    end
+
+    _connect_property_obs(figure, properties, current_point, input_layout, text_input)
+
+    return properties, text_boxes
+end
 
 function _make_property_text_inputs(fig, properties::NamedTuple, current_point::Observable, input_layout)
     i = 0
@@ -221,6 +228,17 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
             notify(props)
             return nothing
         end
+        on(props) do propsvec
+            n = current_point[][1]
+            n > 0 || return nothing
+            tb.displayed_string[] = lpad(propsvec[n], 1)
+            notify(tb.displayed_string)
+        end
+    end
+end
+
+function _connect_property_obs(fig, properties::NamedTuple, current_point::Observable, input_layout, text_input)
+    map(properties) do props
         on(current_point) do cp
             propsvec = props[]
             n = cp[1]
@@ -235,10 +253,7 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
                 end
             end
             @assert n <= length(propsvec)
-
-            tb.displayed_string[] = lpad(propsvec[n], 1)
-            notify(tb.displayed_string)
-            n > 0 || return nothing
+            notify(props)
         end
     end
 end
@@ -300,7 +315,6 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
-    @show scatter_kw
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
         draw_current_point!(fig, ax, c; current_point_kw) 
@@ -343,7 +357,6 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
-    @show c.geoms
     # TODO first plot as a line and switch to a polygon when you close it to the first point.
     # This will need all new polygons to be a line stored in a separate Observable
     # that we plot like LineString.
@@ -372,7 +385,6 @@ end
 function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
     scatter_kw=(;),
 )
-    @show eltype(c.geoms[])
     # All points
     s = if isnothing(c.color)
         scatter!(ax, c.geoms)#; scatter_kw...)
@@ -410,7 +422,6 @@ function add_events!(c::GeometryCanvas{<:Point};
 
     # Mouse down event
     on(events(ax.scene).mousebutton, priority=100) do event
-        @show accuracy[]
         # If this canvas is not active dont respond to mouse events
         (; geoms, points, dragging, active, section) = c
         active[] || return Consume(false)
@@ -492,6 +503,7 @@ function add_events!(c::GeometryCanvas{<:Point};
             # Set the current point to the previous one, or 1
             _delete_point!(c, idx[])
         end
+        notify(points)
         return Consume(true)
     end
 end
@@ -699,7 +711,8 @@ end
 # Get pixel click accuracy from the size of the visable heatmap.
 function _accuracy(ax::Axis, accuracy_scale)
     lift(ax.finallimits) do fl
-        maximum(fl.widths) / (accuracy_scale * 100)
+        @show fl.widths ax.scene.px_area[].widths
+        sum(maximum(fl.widths) ./ ax.scene.px_area[].widths) / accuracy_scale * 4
     end
 end
 
