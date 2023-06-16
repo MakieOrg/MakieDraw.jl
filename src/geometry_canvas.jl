@@ -300,6 +300,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
+    @show scatter_kw
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
         draw_current_point!(fig, ax, c; current_point_kw) 
@@ -409,6 +410,7 @@ function add_events!(c::GeometryCanvas{<:Point};
 
     # Mouse down event
     on(events(ax.scene).mousebutton, priority=100) do event
+        @show accuracy[]
         # If this canvas is not active dont respond to mouse events
         (; geoms, points, dragging, active, section) = c
         active[] || return Consume(false)
@@ -697,7 +699,7 @@ end
 # Get pixel click accuracy from the size of the visable heatmap.
 function _accuracy(ax::Axis, accuracy_scale)
     lift(ax.finallimits) do fl
-        maximum(fl.widths) / accuracy_scale * 100
+        maximum(fl.widths) / (accuracy_scale * 100)
     end
 end
 
