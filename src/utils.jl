@@ -43,8 +43,6 @@ function _is_alt_pressed(fig)
 end
 
 function _pointnearest(f, positions::Vector{<:Point}, pos, accuracy)
-    println()
-    @show accuracy
     length(positions) > 0 || return false
     mindistance = Inf
     minindex = 0
@@ -52,7 +50,6 @@ function _pointnearest(f, positions::Vector{<:Point}, pos, accuracy)
         p = positions[i]
         distance = sqrt((p[1] - pos[1])^2 + (p[2] - pos[2])^2)
         if distance < mindistance
-            @show distance
             mindistance = distance
             minindex = i
         end

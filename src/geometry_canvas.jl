@@ -711,7 +711,6 @@ end
 # Get pixel click accuracy from the size of the visable heatmap.
 function _accuracy(ax::Axis, accuracy_scale)
     lift(ax.finallimits) do fl
-        @show fl.widths ax.scene.px_area[].widths
         sum(maximum(fl.widths) ./ ax.scene.px_area[].widths) / accuracy_scale * 4
     end
 end

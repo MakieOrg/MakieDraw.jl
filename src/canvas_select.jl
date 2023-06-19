@@ -54,7 +54,6 @@ function CanvasSelect(fig::Union{Figure,GridPosition}, ax::Axis; layers=[])
         end
     end
     options = map(string, collect(keys(layers)))
-    @show options default
     m = Menu(fig; options, default)
     CanvasSelect(m, ax; layers)
 end
