@@ -48,7 +48,7 @@ function _pointnearest(f, positions::Vector{<:Point}, pos, accuracy)
     minindex = 0
     for i in eachindex(positions)
         p = positions[i]
-        distance = sqrt((p[1] - pos[1])^2 * (p[2] - pos[2])^2)
+        distance = sqrt((p[1] - pos[1])^2 + (p[2] - pos[2])^2)
         if distance < mindistance
             mindistance = distance
             minindex = i
@@ -67,7 +67,7 @@ function _pointnearest(f, positions::Vector{<:Vector}, pos, accuracy)
     for i in eachindex(positions)
         for j in eachindex(positions[i])
             p = positions[i][j]
-            distance = sqrt((p[1] - pos[1])^2 * (p[2] - pos[2])^2)
+            distance = sqrt((p[1] - pos[1])^2 + (p[2] - pos[2])^2)
             if distance < mindistance
                 mindistance = distance
                 minindex = (i, j)

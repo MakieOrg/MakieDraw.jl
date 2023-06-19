@@ -34,7 +34,6 @@ using Tyler
 using Extents
 provider = Google(:satelite)
 
-
 figure = Figure()
 axis = Axis(figure[1, 1])
 
