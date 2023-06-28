@@ -32,7 +32,7 @@ A canvas for drawing GeometryBasics.jl geometries onto a Makie.jl `Axis`.
 - `scatter_kw`: keywords to pass to `scatter`.
 - `lines_kw`: keywords to pass to `lines`.
 - `poly_kw`: keywords to pass to `poly`.
-- `current_point_kw`: keywords for the current point `scatter`. 
+- `current_point_kw`: keywords for the current point `scatter`.
 - `show_current_point`: whether to show the current point differently to the other.
 - `text_input`: wether to add text input boxes for property input.
 """
@@ -53,7 +53,7 @@ mutable struct GeometryCanvas{T,G,P,CP,I,Pr,TB,F,A,Co} <: AbstractCanvas
     on_mouse_events::Function
 end
 # GeometryCanvas(obj; kw...) = GeometryCanvas{Nothing}(obj; kw...)
-# GeometryCanvas{T}(on_mouse_events, obj; kw...) where T = 
+# GeometryCanvas{T}(on_mouse_events, obj; kw...) where T =
     # GeometryCanvas{T}(obj; on_mouse_events, kw...)
 function GeometryCanvas(geoms::AbstractVector; kw...)
     trait = GI.geomtrait(first(geoms))
@@ -86,7 +86,7 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
     on_mouse_events=no_consume,
     mouse_property=nothing,
     text_input=true,
-    input_layout=GridLayout(figure[2, 1], tellwidth=false), 
+    input_layout=nothing,
 ) where T<:Union{Point,LineString,Polygon,MultiPoint,Nothing}
     if Tables.istable(typeof(obj))
         properties = if isnothing(properties) && !isnothing(propertynames)
@@ -114,14 +114,14 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
         end
         geoms = map(GI.geometry, GI.getfeature(obj))
     else
-        geoms = obj isa Observable ? collect(obj[]) : collect(obj)
+        geoms = obj isa Observable ? obj : collect(obj)
         properties = isnothing(properties) ? NamedTuple() : properties
         # geoms = filter(geoms) do geom
         #     !isnothing(geom)
         # end
     end
 
-    geoms = if geoms isa Observable 
+    geoms = if geoms isa Observable
         geoms
     elseif eltype(geoms) <: T
         Observable(geoms)
@@ -155,12 +155,12 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
 
     types = map(typeof, (geoms,points_obs,current_point,section,properties,text_boxes,figure,axis,color))
     canvas = GeometryCanvas{T1,types...}(
-        geoms, points_obs, dragging, active, accuracy_scale, current_point, 
+        geoms, points_obs, dragging, active, accuracy_scale, current_point,
         section, name, properties, text_boxes, figure, axis, color, on_mouse_events,
     )
 
     # Plot everying on `axis`
-    draw!(figure, axis, canvas; 
+    draw!(figure, axis, canvas;
         scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point
     )
     addtoswitchers!(canvas)
@@ -187,16 +187,19 @@ function _initialise_properties(figure, properties, propertynames, current_point
             p isa Observable ? p : Observable(p)
         end
     else
-        nothing
+        NamedTuple()
     end
 
-    text_boxes = if isnothing(properties) || !text_input
-        nothing
+    text_boxes = if properties == NamedTuple() || !text_input
+        NamedTuple()
     else
+        if isnothing(input_layout)
+            input_layout = GridLayout(figure[2, 1], tellwidth=false)
+        end
         _make_property_text_inputs(figure, properties, current_point, input_layout)
+        _connect_property_obs(figure, properties, current_point, input_layout, text_input)
     end
 
-    _connect_property_obs(figure, properties, current_point, input_layout, text_input)
 
     return properties, text_boxes
 end
@@ -211,7 +214,7 @@ function _make_property_text_inputs(fig, properties::NamedTuple, current_point::
             propsvec = props[]
             n = current_point[][1]
             n > 0 || return nothing
-            for _ in lastindex(propsvec):n-1 
+            for _ in lastindex(propsvec):n-1
                 if T <: AbstractString
                     push!(propsvec, " ")
                 elseif T <: Real
@@ -239,6 +242,7 @@ end
 
 function _connect_property_obs(fig, properties::NamedTuple, current_point::Observable, input_layout, text_input)
     map(properties) do props
+        T = eltype(props[])
         on(current_point) do cp
             propsvec = props[]
             n = cp[1]
@@ -310,17 +314,17 @@ end
     Tables.getcolumn(t, key)
 end
 
-# Ploting 
+# Ploting
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:Point};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
-        draw_current_point!(fig, ax, c; current_point_kw) 
+        draw_current_point!(fig, ax, c; current_point_kw)
     end
 end
-function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString}; 
+function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
@@ -330,7 +334,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
         lines!(ax, c.geoms; color=c.color, lines_kw...)
     end
     translate!(l, 0, 0, 98)
-    # Show line end points 
+    # Show line end points
     end_points = lift(c.points) do points
         if length(points) > 0
             map(points) do ps
@@ -350,7 +354,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
     translate!(e, 0, 0, 99)
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
-        draw_current_point!(fig, ax, c; current_point_kw) 
+        draw_current_point!(fig, ax, c; current_point_kw)
     end
 end
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
@@ -368,7 +372,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     translate!(p, 0, 0, 98)
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
-        draw_current_point!(fig, ax, c; scatter_kw) 
+        draw_current_point!(fig, ax, c; scatter_kw)
     end
 end
 function draw!(fig, ax::Axis, c::GeometryCanvas{<:MultiPoint};
@@ -378,11 +382,11 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:MultiPoint};
     translate!(p, 0, 0, 98)
     draw_points!(fig, ax, c; scatter_kw)
     if show_current_point
-        draw_current_point!(fig, ax, c; scatter_kw) 
+        draw_current_point!(fig, ax, c; scatter_kw)
     end
 end
 
-function draw_points!(fig, ax::Axis, c::GeometryCanvas; 
+function draw_points!(fig, ax::Axis, c::GeometryCanvas;
     scatter_kw=(;),
 )
     # All points
@@ -394,7 +398,7 @@ function draw_points!(fig, ax::Axis, c::GeometryCanvas;
     translate!(s, 0, 0, 98)
 end
 
-function draw_current_point!(fig, ax::Axis, c::GeometryCanvas; 
+function draw_current_point!(fig, ax::Axis, c::GeometryCanvas;
     scatter_kw=(;),
 )
     # Current point
@@ -415,7 +419,7 @@ end
 function add_events!(c::GeometryCanvas{<:Point};
     mouse_property=nothing,
 )
-    fig = c.figure; ax = c.axis 
+    fig = c.figure; ax = c.axis
     deleting = Observable(false)
     accuracy = _accuracy(ax, c.accuracy_scale)
 
@@ -473,7 +477,7 @@ function add_events!(c::GeometryCanvas{<:Point};
         axis_pos = Makie.mouseposition(ax.scene)
         if deleting[] && _is_alt_pressed(fig)
             found = true
-            while found 
+            while found
                 found = _pointnearest(c.points[], axis_pos, accuracy[]) do I
                     _delete_point!(c, I)
                     true
@@ -511,7 +515,7 @@ end
 function add_events!(c::GeometryCanvas{T};
     mouse_property=nothing,
 ) where T <: Union{<:Polygon,<:LineString,<:MultiPoint}
-    fig = c.figure; ax = c.axis 
+    fig = c.figure; ax = c.axis
 
     deleting = Observable(false)
     accuracy = _accuracy(ax, c.accuracy_scale)
@@ -535,7 +539,7 @@ function add_events!(c::GeometryCanvas{T};
             if _is_alt_pressed(fig)
                 deleting[] = true
                 found = true
-                while found 
+                while found
                     found = _pointnearest(c.points[], axis_pos, accuracy[]) do I
                         _delete_point!(c, I)
                         true
@@ -619,7 +623,7 @@ function add_events!(c::GeometryCanvas{T};
         axis_pos = Makie.mouseposition(ax.scene)
         if deleting[] && _is_alt_pressed(fig)
             found = true
-            while found 
+            while found
                 found = _pointnearest(c.points[], axis_pos, accuracy[]) do I
                     _delete_point!(c, I)
                     true
@@ -655,7 +659,7 @@ function add_events!(c::GeometryCanvas{T};
             idx[] = (max(1, i1 - 1), 1)
         else
             length(points[][i1]) > 0 || return Consume(true)
-            # Delete point 
+            # Delete point
             _delete_point!(c, idx[])
         end
         notify(idx)
@@ -715,7 +719,7 @@ function _accuracy(ax::Axis, accuracy_scale)
     end
 end
 
-geoms_to_points(geoms) = 
+geoms_to_points(geoms) =
     [[Point2(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms]
 
 _isvalid_current_point(cp::Observable) = _isvalid_current_point(cp[])
