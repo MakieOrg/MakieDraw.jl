@@ -432,7 +432,7 @@ function add_events!(c::GeometryCanvas{<:Point};
 
         # Add points with left click
         if event.action == Mouse.press
-            if Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+            if Makie.mouseposition_px(fig.scene) in ax.scene.viewport[]
                 # Set how close to a point we have to be to select it
                 idx = c.current_point
                 # Get mouse position in the axis and figure
@@ -534,7 +534,7 @@ function add_events!(c::GeometryCanvas{T};
 
         axis_pos = Makie.mouseposition(ax.scene)
         # Add points with left click
-        if event.action == Mouse.press && Makie.mouseposition_px(fig.scene) in ax.scene.px_area[]
+        if event.action == Mouse.press && Makie.mouseposition_px(fig.scene) in ax.scene.viewport[]
             insert = false
             if _is_alt_pressed(fig)
                 deleting[] = true
@@ -715,7 +715,7 @@ end
 # Get pixel click accuracy from the size of the visable heatmap.
 function _accuracy(ax::Axis, accuracy_scale)
     lift(ax.finallimits) do fl
-        sum(maximum(fl.widths) ./ ax.scene.px_area[].widths) / accuracy_scale * 4
+        sum(maximum(fl.widths) ./ ax.scene.viewport[].widths) / accuracy_scale * 4
     end
 end
 

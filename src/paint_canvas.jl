@@ -46,7 +46,7 @@ mutable struct PaintCanvas{T,Fu,D,M<:AbstractMatrix{T},Fi,A} <: AbstractCanvas
     on_mouse_events::Function
 end
 function PaintCanvas(data::AbstractMatrix;
-    f=(axis, xs, ys, v) -> image!(axis, xs, ys, v; interpolate=false, colormap=:inferno),
+    f=(axis, xs, ys, v) -> image!(axis, (first(xs), last(xs)), (first(ys), last(ys)), v; interpolate=false, colormap=:inferno),
     drawing=Observable{Bool}(false),
     drawbutton=Observable{Any}(Mouse.left),
     active=Observable{Bool}(true),
@@ -92,7 +92,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
 
         # Add points with left click
         if event.action == Mouse.press
-            if !(fig_pos in ax.scene.px_area[])
+            if !(fig_pos in ax.scene.viewport[])
                 drawing[] = false
                 return Consume(false)
             end
@@ -126,7 +126,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
         if drawing[]
             fig_pos = Makie.mouseposition_px(fig.scene)
             axis_pos = Makie.mouseposition(ax.scene)
-            if !(fig_pos in ax.scene.px_area[])
+            if !(fig_pos in ax.scene.viewport[])
                 drawing[] = false
                 return Consume(false)
             end
