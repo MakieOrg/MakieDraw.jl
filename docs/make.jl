@@ -11,7 +11,6 @@ makedocs(;
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
         canonical="https://MakieOrg.github.io/MakieDraw.jl",
-        edit_link="main",
         assets=String[],
     ),
     pages=[
@@ -21,5 +20,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/MakieOrg/MakieDraw.jl",
-    devbranch="main",
+    push_preview=true,
 )
