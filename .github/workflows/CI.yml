@@ -25,6 +25,9 @@ jobs:
         arch:
           - x64
           # - x86
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
@@ -43,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
