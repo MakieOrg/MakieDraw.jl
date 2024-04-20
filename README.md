@@ -1,9 +1,9 @@
 # MakieDraw
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://rafaqz.github.io/MakieDraw.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://rafaqz.github.io/MakieDraw.jl/dev/)
-[![Build Status](https://github.com/rafaqz/MakieDraw.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/rafaqz/MakieDraw.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/rafaqz/MakieDraw.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/rafaqz/MakieDraw.jl)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://MakieOrg.github.io/MakieDraw.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://MakieOrg.github.io/MakieDraw.jl/dev/)
+[![Build Status](https://github.com/MakieOrg/MakieDraw.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/MakieOrg/MakieDraw.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/MakieOrg/MakieDraw.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/MakieOrg/MakieDraw.jl)
 
 
 Plot an interactive canvas of GeometryBaseics `Point`, `LineString` or `Polygon`, or an ms-paint style canvas for any numerical or color `Array`. These can be overlayed and activated/deactivated to have multiple drawing task on the same `Axis`.
