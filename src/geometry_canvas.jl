@@ -163,7 +163,6 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
     draw!(figure, axis, canvas;
         scatter_kw, lines_kw, poly_kw, current_point_kw, show_current_point
     )
-    addtoswitchers!(canvas)
     add_events!(canvas; mouse_property)
     return canvas
 end
@@ -171,7 +170,9 @@ end
 _current_point_obs(::Type{<:Point}) = Observable(1)
 _current_point_obs(::Type) = Observable((1, 1))
 
-_geomtype(T) = T
+_geomtype(T::Type) = T
+_geomtype(::Type{LineString}) = LineString{2,Float64,Point{2,Float64}}
+_geomtype(::Type{Polygon}) = Polygon{2,Float64,Point{2,Float64}}
 _geomtype(::Type{<:Point}) = Point2f
 
 function _initialise_properties(figure, properties, propertynames, current_point, input_layout, text_input)
@@ -328,6 +329,7 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
     scatter_kw=(;), lines_kw=(;), poly_kw=(;), current_point_kw=(;),
     show_current_point=false,
 )
+@show typeof(c.geoms)
     l = if isnothing(c.color)
         lines!(ax, c.geoms; lines_kw...)
     else
@@ -365,9 +367,9 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:Polygon};
     # This will need all new polygons to be a line stored in a separate Observable
     # that we plot like LineString.
     p = if isnothing(c.color)
-        mesh!(ax, c.geoms)
+        poly!(ax, c.geoms)
     else
-        mesh!(ax, c.geoms; color=c.color, poly_kw...)
+        poly!(ax, c.geoms; color=c.color, poly_kw...)
     end
     translate!(p, 0, 0, 98)
     draw_points!(fig, ax, c; scatter_kw)
@@ -425,7 +427,7 @@ function add_events!(c::GeometryCanvas{<:Point};
 
 
     # Mouse down event
-    on(events(ax.scene).mousebutton, priority=100) do event
+    on(events(ax.scene).mousebutton, priority=-100) do event
         # If this canvas is not active dont respond to mouse events
         (; geoms, points, dragging, active, section) = c
         active[] || return Consume(false)
