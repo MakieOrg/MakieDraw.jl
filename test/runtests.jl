@@ -1,6 +1,6 @@
 using MakieDraw
 using Test
-using GLMakie
+using Makie
 using GeometryBasics
 using GeoJSON
 using GeoInterface
