@@ -173,7 +173,7 @@ _current_point_obs(::Type) = Observable((1, 1))
 _geomtype(T::Type) = T
 _geomtype(::Type{LineString}) = LineString{2,Float64,Point{2,Float64}}
 _geomtype(::Type{Polygon}) = Polygon{2,Float64,Point{2,Float64}}
-_geomtype(::Type{<:Point}) = Point2f
+_geomtype(::Type{<:Point}) = Point2{Float64}
 
 function _initialise_properties(figure, properties, propertynames, current_point, input_layout, text_input)
     properties = if isnothing(properties) && propertynames isa Tuple
