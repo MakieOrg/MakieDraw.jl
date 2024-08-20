@@ -6,19 +6,19 @@ using GeoJSON
 using GeoInterface
 
 figure = Figure()
-axis = Axis(figure[1:10, 1:10])
+axis = Axis(figure[1, 1])
 
 paint_canvas = PaintCanvas(falses(100, 100); figure, axis)
-
-paint_canvas.active[] = false
+paint_canvas.active[] = true
 
 line_canvas = GeometryCanvas{LineString}(; figure, axis)
-
 line_canvas.active[] = false
 
 point_canvas = GeometryCanvas{Point}(; figure, axis)
-
 point_canvas.active[] = false
+
+# poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
+# poly_canvas.active[] = false
 
 polys = [Polygon([Point(1.0, 2.0), Point(2.0, 3.0), Point(3.0, 1.0), Point(1.0, 2.0)])]
 poly_canvas = GeometryCanvas(polys; figure, axis);
@@ -30,7 +30,7 @@ layers = Dict(
     :poly=>poly_canvas.active,
 )
 
-MakieDraw.CanvasSelect(figure[2, 1], axis; layers)
+MakieDraw.CanvasSelect(figure[2, 1]; layers)
 
 # Write the polygons to JSON
 # Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193
