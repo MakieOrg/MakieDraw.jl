@@ -414,7 +414,7 @@ function draw_current_point!(fig, ax::Axis, c::GeometryCanvas;
         end
     end
     p = scatter!(ax, current_point_pos; color=:red, scatter_kw...)
-    translate!(p, 0, 0, 100)
+    translate!(p, 0, 0, 50)
 end
 
 # Point selection and movement
@@ -427,7 +427,7 @@ function add_events!(c::GeometryCanvas{<:Point};
 
 
     # Mouse down event
-    on(events(ax.scene).mousebutton, priority=-100) do event
+    on(events(ax.scene).mousebutton, priority=50) do event
         # If this canvas is not active dont respond to mouse events
         (; geoms, points, dragging, active, section) = c
         active[] || return Consume(false)
@@ -472,7 +472,7 @@ function add_events!(c::GeometryCanvas{<:Point};
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority=100) do event
+    on(events(fig).mouseposition, priority=50) do event
         c.active[] || return Consume(false)
         idx = c.current_point
         _isvalid_current_point(idx) || return Consume(true)
@@ -498,7 +498,7 @@ function add_events!(c::GeometryCanvas{<:Point};
         return Consume(false)
     end
 
-    on(events(ax.scene).keyboardbutton, priority=100) do event
+    on(events(ax.scene).keyboardbutton, priority=50) do event
         (; geoms, points, active, section) = c
         active[] || return Consume(false)
         (event.action in (Keyboard.press, Keyboard.repeat) && event.key == Keyboard.delete) || return Consume(false)
@@ -523,7 +523,7 @@ function add_events!(c::GeometryCanvas{T};
     accuracy = _accuracy(ax, c.accuracy_scale)
 
     # Mouse down event
-    on(events(ax.scene).mousebutton, priority=100) do event
+    on(events(ax.scene).mousebutton, priority=50) do event
         (; geoms, points, dragging, active, section) = c
 
         active[] || return Consume(false)
@@ -618,7 +618,7 @@ function add_events!(c::GeometryCanvas{T};
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority=100) do mp
+    on(events(fig).mouseposition, priority=50) do mp
         c.active[] || return Consume(false)
         idx = c.current_point
         _isvalid_current_point(idx) || return Consume(true)

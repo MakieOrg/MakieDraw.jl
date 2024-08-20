@@ -80,7 +80,7 @@ end
 function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
     lastpos = Observable{Any}()
     (; drawing, drawbutton, active) = c
-    on(events(ax.scene).mousebutton, priority = 100) do event
+    on(events(ax.scene).mousebutton; priority=50) do event
 
         # If this canvas is not active dont respond to mouse events
         active[] || return Consume(false)
@@ -121,7 +121,7 @@ function add_mouse_events!(fig::Figure, ax::Axis, c::PaintCanvas)
     end
 
     # Mouse drag event
-    on(events(fig).mouseposition, priority = 100) do event
+    on(events(fig).mouseposition; priority=50) do event
         active[] || return Consume(false)
         if drawing[]
             fig_pos = Makie.mouseposition_px(fig.scene)
