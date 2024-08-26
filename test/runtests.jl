@@ -9,7 +9,7 @@ figure = Figure()
 axis = Axis(figure[1, 1])
 
 paint_canvas = PaintCanvas(falses(100, 100); figure, axis)
-paint_canvas.active[] = true
+paint_canvas.active[] = false
 
 line_canvas = GeometryCanvas{LineString}(; figure, axis)
 line_canvas.active[] = false
