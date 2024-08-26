@@ -136,7 +136,7 @@ function GeometryCanvas{T}(obj=Observable(_geomtype(T)[]);
         points_obs = if length(geoms[]) > 0
             Observable(geoms_to_points(geoms[]))
         else
-            ps = Vector{Point2f}[]
+            ps = Vector{Point2{Float64}}[]
             if length(ps) > 0
                 geoms[] = T1.(ps)
             end
@@ -345,11 +345,11 @@ function draw!(fig, ax::Axis, c::GeometryCanvas{<:LineString};
                 elseif length(ps) > 0
                     [first(ps)]
                 else
-                    Point2f[]
+                    Point2{Float64}[]
                 end
             end |> Iterators.flatten |> collect
         else
-            Point2f[]
+            Point2{Float64}[]
         end
     end
     e = scatter!(ax, end_points; color=:black, scatter_kw...)
@@ -406,7 +406,7 @@ function draw_current_point!(fig, ax::Axis, c::GeometryCanvas;
     # Current point
     current_point_pos = lift(c.points) do points
         cp = c.current_point[]
-        length(points) > 0 || return Point2(0.0f0, 0.0f0)
+        length(points) > 0 || return Point2{Float64}(0.0, 0.0)
         if cp isa Tuple
             points[cp[1]][cp[2]]
         else
@@ -722,7 +722,7 @@ function _accuracy(ax::Axis, accuracy_scale)
 end
 
 geoms_to_points(geoms) =
-    [[Point2(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms]
+    [[Point2{Float64}(GI.x(p), GI.y(p)) for p in GI.getpoint(g)] for g in geoms]
 
 _isvalid_current_point(cp::Observable) = _isvalid_current_point(cp[])
 _isvalid_current_point(cp::Tuple) = cp[1] > 0 && cp[2] > 0
