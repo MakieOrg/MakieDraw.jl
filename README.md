@@ -54,9 +54,9 @@ point_canvas.active[] = true
 poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
 
 layers = Dict(
-    :point=>point_canvas.active, 
-    :line=>line_canvas.active,
-    :poly=>poly_canvas.active,
+    :point=>point_canvas, 
+    :line=>line_canvas,
+    :poly=>poly_canvas,
 )
 
 MakieDraw.CanvasSelect(figure[3, 1], axis; layers)

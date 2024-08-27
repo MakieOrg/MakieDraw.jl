@@ -9,28 +9,27 @@ figure = Figure()
 axis = Axis(figure[1, 1])
 
 paint_canvas = PaintCanvas(falses(100, 100); figure, axis)
-paint_canvas.active[] = false
 
-line_canvas = GeometryCanvas{LineString}(; figure, axis)
-line_canvas.active[] = false
-
-point_canvas = GeometryCanvas{Point}(; figure, axis)
-point_canvas.active[] = false
-
-# poly_canvas = GeometryCanvas{Polygon}(; figure, axis)
-# poly_canvas.active[] = false
-
-polys = [Polygon([Point(1.0, 2.0), Point(2.0, 3.0), Point(3.0, 1.0), Point(1.0, 2.0)])]
+polys = [Polygon([Point(10.0, 50.0), Point(50.0, 70.0), Point(70.0, 10.0), Point(10.0, 50.0)])]
 poly_canvas = GeometryCanvas(polys; figure, axis);
 
 layers = Dict(
-    :paint=>paint_canvas.active, 
-    :point=>point_canvas.active, 
-    :line=>line_canvas.active,
-    :poly=>poly_canvas.active,
+    :paint=>paint_canvas, # Passing any AbstractCanvas works
+    :poly=>poly_canvas.active, # an Observable{Bool} also works
 )
 
-MakieDraw.CanvasSelect(figure[2, 1]; layers)
+# Add a Canvas selector
+cs = MakieDraw.CanvasSelect(figure[2, 1]; layers)
+
+# We can push to it
+line_canvas = GeometryCanvas{LineString}(; figure, axis)
+push!(cs, :line=>line_canvas)
+
+# line_canvas it should be active now
+
+# And also set values
+point_canvas = GeometryCanvas{Point}(; figure, axis)
+cs[:point] = point_canvas 
 
 # Write the polygons to JSON
 # Have to convert here because GeometryBasics `isgeometry` has a bug, see PR #193
@@ -48,3 +47,6 @@ polys = [Polygon([Point(1.0, 2.0), Point(2.0, 3.0), Point(3.0, 1.0), Point(1.0, 
 poly!(polys)
 poly_canvas = GeometryCanvas(geojson_polys; figure, axis);
 
+# TODO: click and keypress testing
+# event.keyboard[] = value 
+# scene.events.mousebutton[] = ... 
