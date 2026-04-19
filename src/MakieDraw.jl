@@ -1,8 +1,8 @@
 module MakieDraw
 
-using GeometryBasics, Makie, Tables
+using GeometryBasics, GeoInterface, Makie, Tables
 
-const GI = GeometryBasics.GeoInterface
+const GI = GeoInterface
 
 export GeometryCanvas, PaintCanvas, CanvasSelect
 
