@@ -56,7 +56,7 @@ function PaintCanvas(data::AbstractMatrix;
     fill_right=Observable(zero(eltype(data))),
     fill_middle=Observable(zero(eltype(data))),
     figure=Figure(),
-    axis=Axis(fig[1, 1]),
+    axis=Axis(figure[1, 1]),
     on_mouse_events=no_consume,
 )
     obs_args = map(_as_observable, (drawing, drawbutton, active, dimensions, data, fill_left, fill_right, fill_middle))
